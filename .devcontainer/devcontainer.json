@@ -50,5 +50,8 @@
 	},
 
 	// Set `remoteUser` to `root` to connect as root instead. More info: https://aka.ms/vscode-remote/containers/non-root.
-	"remoteUser": "graphar"
+	"remoteUser": "graphar",
+
+	// Install pre-commit hooks after container creation
+	"postCreateCommand": "pre-commit install || echo 'No .pre-commit-config.yaml found, skipping pre-commit installation'"
 }

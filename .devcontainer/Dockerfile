@@ -44,6 +44,8 @@ RUN apt-get update && apt-get install -y ca-certificates lsb-release wget \
        sudo \
        tzdata \
        maven \
+       python3-pip \
+    && pip3 install --no-cache-dir pre-commit \
     && curl -sSL https://install.python-poetry.org | python3 - \
     && wget https://github.com/muttleyxd/clang-tools-static-binaries/releases/download/master-22538c65/clang-format-8_linux-amd64 -O /usr/bin/clang-format \
     && chmod +x /usr/bin/clang-format \
