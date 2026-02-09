@@ -89,6 +89,7 @@ function(build_arrow)
                              "-DARROW_BUILD_TESTS=OFF"
                              "-DARROW_BUILD_INTEGRATION=OFF"
                              "-DBoost_SOURCE=BUNDLED"
+                             "-DBOOST_SOURCE_URL=$ENV{BOOST_SOURCE_URL}"
                              "-DARROW_ORC=ON"
                              "-DARROW_COMPUTE=ON"
                              "-DARROW_ACERO=ON"
@@ -110,13 +111,18 @@ function(build_arrow)
     find_package(Arrow QUIET)
     if(DEFINED ENV{GAR_ARROW_SOURCE_URL})
         set(GAR_ARROW_SOURCE_URL "$ENV{GAR_ARROW_SOURCE_URL}")
-    else()
+    endif()
+    if(DEFINED ENV{ARROW_VERSION_TO_BUILD})
+        set(ARROW_VERSION_TO_BUILD "$ENV{ARROW_VERSION_TO_BUILD}" CACHE INTERNAL "arrow version")
+    elseif(NOT DEFINED ARROW_VERSION_TO_BUILD)
         set(ARROW_VERSION_TO_BUILD "15.0.0" CACHE INTERNAL "arrow version")
-        if (Arrow_FOUND) # arrow is installed, build the same version as the installed one
+        if (Arrow_FOUND)
             set(ARROW_VERSION_TO_BUILD "${Arrow_VERSION}" CACHE INTERNAL "arrow version")
         endif()
+    endif()
+    if(NOT DEFINED GAR_ARROW_SOURCE_URL)
         set(GAR_ARROW_SOURCE_URL "https://www.apache.org/dyn/closer.lua?action=download&filename=arrow/arrow-${ARROW_VERSION_TO_BUILD}/apache-arrow-${ARROW_VERSION_TO_BUILD}.tar.gz")
-    endif ()
+    endif()
 
     include(ExternalProject)
     externalproject_add(arrow_ep
