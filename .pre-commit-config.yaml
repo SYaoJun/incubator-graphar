@@ -42,6 +42,16 @@ repos:
       files: \.(cc|cpp|h|hpp)$
       types_or: [c++]
       args: [--style=file, --verbose]
+      exclude: ^cpp/thirdparty/.*$
+
+  - repo: https://github.com/cpp-linter/cpp-linter-hooks
+    rev: v1.1.11
+    hooks:
+      - id: clang-tidy
+        entry: clang-tidy
+        language: system
+        types: [c++]
+        exclude: ^cpp/thirdparty/.*
 
   - repo: local
     hooks:
