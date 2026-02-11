@@ -102,7 +102,9 @@ function(build_arrow)
                              "-DARROW_WITH_BZ2=OFF"
                              "-DARROW_OPENSSL_USE_SHARED=ON"
                              "-DARROW_S3=ON")
-
+    if (DEFINED ENV{BOOST_SOURCE_URL})
+        list(APPEND GAR_ARROW_CMAKE_ARGS "-DBOOST_SOURCE_URL=$ENV{BOOST_SOURCE_URL}")
+    endif()
     set(GAR_ARROW_INCLUDE_DIR "${GAR_ARROW_PREFIX}/include" CACHE INTERNAL "arrow include directory")
     set(GAR_ARROW_BUILD_BYPRODUCTS "${GAR_ARROW_STATIC_LIB}" "${GAR_PARQUET_STATIC_LIB}" "${GAR_DATASET_STATIC_LIB}")
 
