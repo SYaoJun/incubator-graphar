@@ -549,6 +549,22 @@ AdjListArrowChunkReader::AdjListArrowChunkReader(
       base_dir_(other.base_dir_),
       fs_(other.fs_) {}
 
+AdjListArrowChunkReader& AdjListArrowChunkReader::operator=(const AdjListArrowChunkReader& other) {
+  if (this != &other) {
+    edge_info_ = other.edge_info_;
+    adj_list_type_ = other.adj_list_type_;
+    vertex_chunk_index_ = other.vertex_chunk_index_;
+    chunk_index_ = other.chunk_index_;
+    seek_offset_ = other.seek_offset_;
+    chunk_table_ = nullptr;
+    vertex_chunk_num_ = other.vertex_chunk_num_;
+    chunk_num_ = other.chunk_num_;
+    base_dir_ = other.base_dir_;
+    fs_ = other.fs_;
+  }
+  return *this;
+}
+
 Status AdjListArrowChunkReader::seek_src(IdType id) {
   if (adj_list_type_ != AdjListType::unordered_by_source &&
       adj_list_type_ != AdjListType::ordered_by_source) {

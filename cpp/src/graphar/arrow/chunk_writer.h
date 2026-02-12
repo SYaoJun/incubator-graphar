@@ -131,7 +131,7 @@ class VertexPropertyWriter {
    */
   Status WriteLabelChunk(
       const std::shared_ptr<arrow::Table>& input_table, IdType chunk_index,
-      FileType file_type,
+      [[maybe_unused]] FileType file_type,
       ValidateLevel validate_level = ValidateLevel::default_validate) const;
 
   /**

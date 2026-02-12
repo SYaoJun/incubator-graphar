@@ -268,7 +268,7 @@ Status VertexPropertyWriter::WriteChunk(
 
 Status VertexPropertyWriter::WriteLabelChunk(
     const std::shared_ptr<arrow::Table>& input_table, IdType chunk_index,
-    FileType file_type, ValidateLevel validate_level) const {
+    [[maybe_unused]] FileType file_type, [[maybe_unused]] ValidateLevel validate_level) const {
   auto schema = input_table->schema();
   std::vector<int> indices;
   for (int i = 0; i < schema->num_fields(); i++) {

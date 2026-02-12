@@ -293,6 +293,11 @@ class AdjListArrowChunkReader {
   AdjListArrowChunkReader(const AdjListArrowChunkReader& other);
 
   /**
+   * @brief Copy assignment operator.
+   */
+  AdjListArrowChunkReader& operator=(const AdjListArrowChunkReader& other);
+
+  /**
    * @brief Sets chunk position indicator for reader by source vertex id.
    *
    * @param id the source vertex id.
