@@ -108,13 +108,16 @@ function(build_arrow)
 
     find_package(Threads)
     find_package(Arrow QUIET)
+    # Set Arrow version: from env var or default to 23.0.0
+    if(DEFINED ENV{GRAPHAR_ARROW_VERSION})
+        set(ARROW_VERSION_TO_BUILD "$ENV{GRAPHAR_ARROW_VERSION}" CACHE INTERNAL "arrow version")
+    else()
+        set(ARROW_VERSION_TO_BUILD "23.0.0" CACHE INTERNAL "arrow version")
+    endif()
+    
     if(DEFINED ENV{GAR_ARROW_SOURCE_URL})
         set(GAR_ARROW_SOURCE_URL "$ENV{GAR_ARROW_SOURCE_URL}")
     else()
-        set(ARROW_VERSION_TO_BUILD "15.0.0" CACHE INTERNAL "arrow version")
-        if (Arrow_FOUND) # arrow is installed, build the same version as the installed one
-            set(ARROW_VERSION_TO_BUILD "${Arrow_VERSION}" CACHE INTERNAL "arrow version")
-        endif()
         set(GAR_ARROW_SOURCE_URL "https://www.apache.org/dyn/closer.lua?action=download&filename=arrow/arrow-${ARROW_VERSION_TO_BUILD}/apache-arrow-${ARROW_VERSION_TO_BUILD}.tar.gz")
     endif ()
 
