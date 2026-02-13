@@ -18,15 +18,16 @@
 name: GraphAr C++ CI Nightly
 
 on:
+  push:
   workflow_dispatch:
-  schedule:
-    # The notifications for scheduled workflows are sent to the user who
-    # last modified the cron syntax in the workflow file.
-    # Trigger the workflow at 03:00(CST) every day.
-    - cron:  '00 19 * * *'
+  # schedule:
+  #   # The notifications for scheduled workflows are sent to the user who
+  #   # last modified the cron syntax in the workflow file.
+  #   # Trigger the workflow at 03:00(CST) every day.
+  #   - cron:  '00 19 * * *'
 jobs:
   GraphAr-ubuntu-arrow-from-source:
-    if: ${{ github.ref == 'refs/heads/main' && github.repository == 'apache/incubator-graphar' }}
+    # if: ${{ github.ref == 'refs/heads/main' && github.repository == 'apache/incubator-graphar' }}
     runs-on: ubuntu-latest
     env:
       GAR_TEST_DATA: ${{ github.workspace }}/graphar-testing/
