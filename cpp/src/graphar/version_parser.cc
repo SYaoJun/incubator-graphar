@@ -92,7 +92,7 @@ std::vector<std::string> parseUserDefineTypesImpl(
       std::string type = types_str.substr(pos, next_pos - pos);
       trim(type);
       if (!type.empty()) {
-        user_define_types.push_back(type);
+        user_define_types.push_back(std::move(type));
       }
       if (next_pos != std::string::npos) {
         pos = next_pos + 1;

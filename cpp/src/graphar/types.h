@@ -22,6 +22,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -132,7 +133,7 @@ class DataType {
   static std::shared_ptr<DataType> ArrowDataTypeToDataType(
       const std::shared_ptr<arrow::DataType>& type);
 
-  static std::shared_ptr<DataType> TypeNameToDataType(const std::string& str);
+  static std::shared_ptr<DataType> TypeNameToDataType(std::string_view str);
 
   /** Return the type category of the DataType. */
   Type id() const { return id_; }
@@ -230,16 +231,16 @@ static inline std::pair<bool, std::string> AdjListTypeToOrderedAligned(
   }
 }
 
-static inline FileType StringToFileType(const std::string& str) {
+static inline FileType StringToFileType(std::string_view str) {
   static const std::map<std::string, FileType> str2file_type{
       {"csv", FileType::CSV},
       {"json", FileType::JSON},
       {"parquet", FileType::PARQUET},
       {"orc", FileType::ORC}};
   try {
-    return str2file_type.at(str.c_str());
+    return str2file_type.at(std::string(str));
   } catch (const std::exception& e) {
-    throw std::runtime_error("KeyError: " + str);
+    throw std::runtime_error("KeyError: " + std::string(str));
   }
 }
 
@@ -252,16 +253,16 @@ static inline const char* FileTypeToString(FileType file_type) {
   return file_type2string.at(file_type);
 }
 
-static inline Cardinality StringToCardinality(const std::string& str) {
+static inline Cardinality StringToCardinality(std::string_view str) {
   static const std::map<std::string, Cardinality> str2cardinality{
       {"single", Cardinality::SINGLE},
       {"list", Cardinality::LIST},
       {"set", Cardinality::SET},
   };
   try {
-    return str2cardinality.at(str.c_str());
+    return str2cardinality.at(std::string(str));
   } catch (const std::exception& e) {
-    throw std::runtime_error("KeyError: " + str);
+    throw std::runtime_error("KeyError: " + std::string(str));
   }
 }
 
@@ -280,13 +281,13 @@ static inline const char* CardinalityToString(Cardinality cardinality) {
 }
 
 // Helper function to split a string by a delimiter
-inline std::vector<std::string> SplitString(const std::string& str,
+inline std::vector<std::string> SplitString(std::string_view str,
                                             char delimiter) {
   std::vector<std::string> tokens;
   std::string token;
-  std::istringstream tokenStream(str);
+  std::istringstream tokenStream{std::string(str)};
   while (std::getline(tokenStream, token, delimiter)) {
-    tokens.push_back(token);
+    tokens.push_back(std::move(token));
   }
   return tokens;
 }

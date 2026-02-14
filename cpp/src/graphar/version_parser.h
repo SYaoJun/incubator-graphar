@@ -23,6 +23,7 @@
 #include <memory>
 #include <regex>  // NOLINT
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "graphar/result.h"
@@ -87,7 +88,7 @@ class InfoVersion {
   }
 
   /** Check if type is supported by version. */
-  inline bool CheckType(const std::string& type_str) const {
+  inline bool CheckType(std::string_view type_str) const {
     auto& types = version2types.at(version_);
     // check if type_str is in supported types of version
     if (std::find(types.begin(), types.end(), type_str) != types.end()) {

@@ -116,7 +116,7 @@ std::string DataType::ToTypeName() const {
   }
 }
 
-std::shared_ptr<DataType> DataType::TypeNameToDataType(const std::string& str) {
+std::shared_ptr<DataType> DataType::TypeNameToDataType(std::string_view str) {
   if (str == "bool") {
     return boolean();
   } else if (str == "int32") {
@@ -144,7 +144,7 @@ std::shared_ptr<DataType> DataType::TypeNameToDataType(const std::string& str) {
   } else if (str == "list<string>") {
     return list(string());
   } else {
-    throw std::runtime_error("Unsupported data type " + str);
+    throw std::runtime_error("Unsupported data type " + std::string(str));
   }
 }
 
