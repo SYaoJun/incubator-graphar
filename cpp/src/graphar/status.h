@@ -19,6 +19,8 @@
 
 #pragma once
 
+#include <cstdint>
+#include <ostream>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -61,7 +63,13 @@
     GAR_RAISE_ERROR_IF_(!__s.ok(), __s, GAR_STRINGIFY(status));           \
   } while (false)
 
-namespace graphar::util {
+namespace graphar {
+
+// Forward declaration to avoid bringing fwd.h (and its transitive includes)
+// here, which can create nested namespace issues when mixing with Arrow.
+enum class GetChunkVersion : int8_t;
+
+namespace util {
 template <typename Head>
 void StringBuilderRecursive(std::ostringstream& stream, Head&& head) {
   stream << head;
@@ -80,9 +88,28 @@ std::string StringBuilder(Args&&... args) {
   StringBuilderRecursive(ss, std::forward<Args>(args)...);
   return ss.str();
 }
-}  // namespace  graphar::util
+}  // namespace graphar::util
 
 namespace graphar {
+
+inline std::ostream& operator<<(std::ostream& os, GetChunkVersion version) {
+  switch (version) {
+  case GetChunkVersion::AUTO:
+    os << "AUTO";
+    break;
+  case GetChunkVersion::V1:
+    os << "V1";
+    break;
+  case GetChunkVersion::V2:
+    os << "V2";
+    break;
+  default:
+    os << static_cast<int>(version);
+    break;
+  }
+  return os;
+}
+
 /**
  * An enum class representing the status codes for success or error outcomes.
  */
