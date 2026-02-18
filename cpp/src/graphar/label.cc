@@ -26,6 +26,8 @@
 #include <memory>
 #include <set>
 
+namespace graphar {
+
 /// Read a parquet file by ParquetReader & get valid indices
 /// The first column_num labels are concerned.
 int read_parquet_file_and_get_valid_indices(
@@ -110,3 +112,5 @@ int read_parquet_file_and_get_valid_indices(
 
   return count;
 }
+
+}  // namespace graphar

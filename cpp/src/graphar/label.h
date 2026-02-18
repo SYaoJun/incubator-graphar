@@ -37,6 +37,8 @@ using parquet::Type;
 using parquet::schema::GroupNode;
 using parquet::schema::PrimitiveNode;
 
+namespace graphar {
+
 constexpr int BATCH_SIZE = 1024;  // the batch size
 
 /// The query type
@@ -58,5 +60,7 @@ int read_parquet_file_and_get_valid_indices(
     const std::function<bool(bool*, int)>& IsValid, int chunk_idx,
     int chunk_size, std::vector<int>* indices = nullptr,
     uint64_t* bitmap = nullptr, const QUERY_TYPE query_type = COUNT);
+
+}  // namespace graphar
 
 #endif  // CPP_SRC_GRAPHAR_LABEL_H_
