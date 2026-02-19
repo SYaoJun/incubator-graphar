@@ -62,7 +62,14 @@ repos:
           --types,feat,fix,docs,style,refactor,test,chore,perf,ci,build,revert,
           --scope-optional
         ]
-
+  - repo: https://github.com/cheshirekow/cmake-format-precommit
+    rev: v0.6.13
+    hooks:
+      - id: cmake-format
+        name: CMake Format
+        files: .*CMakeLists\.txt$|^cpp/.*/.*\.cmake$
+        args: [--config-file, .cmake-format.py]
+        
   - repo: local
     hooks:
       - id: spotless-java-info
