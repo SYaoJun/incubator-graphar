@@ -375,6 +375,12 @@ class VerticesCollection {
       return vertex_num_;
   }
 
+  /** Get the vertex info. */
+  std::shared_ptr<VertexInfo> GetVertexInfo() const { return vertex_info_; }
+
+  /** Get the prefix. */
+  std::string GetPrefix() const { return prefix_; }
+
   /** The vertex id list that satisfies the label filter condition. */
   Result<std::vector<IdType>> filter(
       const std::vector<std::string>& filter_labels,

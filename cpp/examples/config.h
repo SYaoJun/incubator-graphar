@@ -63,5 +63,5 @@ std::string GetTestingResourceRoot() {
         "Test resources not found, set GAR_TEST_DATA to auxiliary testing "
         "data");
   }
-  return std::string(c_root);
+  return {c_root};
 }

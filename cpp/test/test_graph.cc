@@ -21,6 +21,7 @@
 
 #include "./util.h"
 #include "graphar/api/high_level_reader.h"
+#include "graphar/expression.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -355,6 +356,187 @@ TEST_CASE_METHOD(GlobalFixture, "Graph") {
     }
     REQUIRE(count == 10);
     std::cout << "TimestampType edge_count=" << count << std::endl;
+  }
+
+  SECTION("VerticesCollectionFilter") {
+    // Test filter by expression - filter vertices by property value
+    std::string path =
+        test_data_dir + "/ldbc_sample/parquet/ldbc_sample.graph.yml";
+    auto maybe_graph_info = GraphInfo::Load(path);
+    REQUIRE(maybe_graph_info.status().ok());
+    auto graph_info = maybe_graph_info.value();
+
+    // Create vertices collection
+    std::string type = "person";
+    auto maybe_vertices_collection = VerticesCollection::Make(graph_info, type);
+    REQUIRE(!maybe_vertices_collection.has_error());
+    auto vertices = maybe_vertices_collection.value();
+
+    // Test filter by property expression: gender = "female"
+    auto filter_expr = graphar::_Equal(
+        graphar::_Property("gender"), graphar::_Literal("female"));
+    auto maybe_filtered_ids =
+        vertices->filter("gender", filter_expr, nullptr);
+    REQUIRE(maybe_filtered_ids.status().ok());
+    auto filtered_ids = maybe_filtered_ids.value();
+
+    // Verify filter returned some results
+    REQUIRE(filtered_ids.size() > 0);
+    std::cout << "Filtered " << filtered_ids.size()
+              << " vertices with gender='female'" << std::endl;
+
+    // Create a new filtered collection
+    auto filtered_vertices = std::make_shared<VerticesCollection>(
+        vertices->GetVertexInfo(), vertices->GetPrefix(), true, filtered_ids);
+
+    // Verify all filtered vertices have gender = "female"
+    for (auto it = filtered_vertices->begin(); it != filtered_vertices->end();
+         ++it) {
+      auto gender = it.property<std::string>("gender");
+      REQUIRE(gender.has_value());
+      REQUIRE(gender.value() == "female");
+    }
+
+    // Test filter with greater than expression: id > 100
+    auto filter_expr_gt = graphar::_GreaterThan(
+        graphar::_Property("id"), graphar::_Literal<int64_t>(100));
+    auto maybe_filtered_ids_gt =
+        vertices->filter("id", filter_expr_gt, nullptr);
+    REQUIRE(maybe_filtered_ids_gt.status().ok());
+    auto filtered_ids_gt = maybe_filtered_ids_gt.value();
+
+    std::cout << "Filtered " << filtered_ids_gt.size()
+              << " vertices with id > 100" << std::endl;
+
+    // Create filtered collection and verify
+    auto filtered_vertices_gt = std::make_shared<VerticesCollection>(
+        vertices->GetVertexInfo(), vertices->GetPrefix(), true, filtered_ids_gt);
+
+    for (auto it = filtered_vertices_gt->begin();
+         it != filtered_vertices_gt->end(); ++it) {
+      auto id = it.property<int64_t>("id");
+      REQUIRE(id.has_value());
+      REQUIRE(id.value() > 100);
+    }
+
+    // Test filter with less than expression: id < 50
+    auto filter_expr_lt = graphar::_LessThan(
+        graphar::_Property("id"), graphar::_Literal<int64_t>(50));
+    auto maybe_filtered_ids_lt =
+        vertices->filter("id", filter_expr_lt, nullptr);
+    REQUIRE(maybe_filtered_ids_lt.status().ok());
+    auto filtered_ids_lt = maybe_filtered_ids_lt.value();
+
+    std::cout << "Filtered " << filtered_ids_lt.size()
+              << " vertices with id < 50" << std::endl;
+
+    // Create filtered collection and verify
+    auto filtered_vertices_lt = std::make_shared<VerticesCollection>(
+        vertices->GetVertexInfo(), vertices->GetPrefix(), true, filtered_ids_lt);
+
+    for (auto it = filtered_vertices_lt->begin();
+         it != filtered_vertices_lt->end(); ++it) {
+      auto id = it.property<int64_t>("id");
+      REQUIRE(id.has_value());
+      REQUIRE(id.value() < 50);
+    }
+
+    // Test combined filter with AND: id > 50 AND id < 150
+    auto filter_expr_and = graphar::_And(
+        graphar::_GreaterThan(graphar::_Property("id"),
+                              graphar::_Literal<int64_t>(50)),
+        graphar::_LessThan(graphar::_Property("id"),
+                           graphar::_Literal<int64_t>(150)));
+    auto maybe_filtered_ids_and =
+        vertices->filter("id", filter_expr_and, nullptr);
+    REQUIRE(maybe_filtered_ids_and.status().ok());
+    auto filtered_ids_and = maybe_filtered_ids_and.value();
+
+    std::cout << "Filtered " << filtered_ids_and.size()
+              << " vertices with 50 < id < 150" << std::endl;
+
+    // Create filtered collection and verify
+    auto filtered_vertices_and = std::make_shared<VerticesCollection>(
+        vertices->GetVertexInfo(), vertices->GetPrefix(), true,
+        filtered_ids_and);
+
+    for (auto it = filtered_vertices_and->begin();
+         it != filtered_vertices_and->end(); ++it) {
+      auto id = it.property<int64_t>("id");
+      REQUIRE(id.has_value());
+      REQUIRE(id.value() > 50);
+      REQUIRE(id.value() < 150);
+    }
+  }
+
+  SECTION("VerticesCollectionFilterByLabel") {
+    // Test filter by label - requires graph with labels
+    std::string path = test_data_dir + "/ldbc/parquet/" + "ldbc.graph.yml";
+    auto maybe_graph_info = GraphInfo::Load(path);
+    REQUIRE(maybe_graph_info.status().ok());
+    auto graph_info = maybe_graph_info.value();
+
+    // Get organisation vertex info which has labels
+    auto vertex_info = graph_info->GetVertexInfo("organisation");
+    REQUIRE(vertex_info != nullptr);
+
+    auto labels = vertex_info->GetLabels();
+    if (!labels.empty()) {
+      // Create vertices collection
+      auto vertices = std::make_shared<VerticesCollection>(
+          vertex_info, graph_info->GetPrefix());
+
+      // Test filter by first label
+      auto maybe_filtered_ids = vertices->filter({labels[0]}, nullptr);
+      REQUIRE(maybe_filtered_ids.status().ok());
+      auto filtered_ids = maybe_filtered_ids.value();
+
+      std::cout << "Filtered " << filtered_ids.size() << " vertices with label '"
+                << labels[0] << "'" << std::endl;
+
+      // Create filtered collection
+      auto filtered_vertices = std::make_shared<VerticesCollection>(
+          vertex_info, graph_info->GetPrefix(), true, filtered_ids);
+
+      // Verify filtered collection has correct size
+      size_t count = 0;
+      for (auto it = filtered_vertices->begin();
+           it != filtered_vertices->end(); ++it) {
+        count++;
+      }
+      REQUIRE(count == filtered_ids.size());
+    }
+  }
+
+  SECTION("VerticesCollectionVerticesWithLabel") {
+    // Test static method verticesWithLabel
+    std::string path = test_data_dir + "/ldbc/parquet/" + "ldbc.graph.yml";
+    auto maybe_graph_info = GraphInfo::Load(path);
+    REQUIRE(maybe_graph_info.status().ok());
+    auto graph_info = maybe_graph_info.value();
+
+    // Get organisation vertex info
+    auto vertex_info = graph_info->GetVertexInfo("organisation");
+    REQUIRE(vertex_info != nullptr);
+
+    auto labels = vertex_info->GetLabels();
+    if (!labels.empty()) {
+      // Test verticesWithLabel static method
+      auto maybe_labeled_vertices = VerticesCollection::verticesWithLabel(
+          labels[0], graph_info, "organisation");
+      REQUIRE(maybe_labeled_vertices.status().ok());
+      auto labeled_vertices = maybe_labeled_vertices.value();
+
+      // Verify the collection is filtered
+      size_t count = 0;
+      for (auto it = labeled_vertices->begin();
+           it != labeled_vertices->end(); ++it) {
+        count++;
+      }
+      std::cout << "verticesWithLabel returned " << count
+                << " vertices with label '" << labels[0] << "'" << std::endl;
+      REQUIRE(count > 0);
+    }
   }
 }
 }  // namespace graphar
