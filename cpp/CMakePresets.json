@@ -1,0 +1,161 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "BUILD_ARROW_FROM_SOURCE": "OFF",
+        "GRAPHAR_ENABLE_SANITIZER": "OFF",
+        "GRAPHAR_ENABLE_COVERAGE": "OFF",
+        "USE_STATIC_ARROW": "OFF",
+        "BUILD_TESTS": "ON",
+        "BUILD_BENCHMARKS": "ON",
+        "BUILD_EXAMPLES": "ON"
+      }
+    },
+    {
+      "name": "debug",
+      "displayName": "Debug",
+      "description": "Debug, Arrow prebuilt, sanitizer enabled",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build_debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "BUILD_ARROW_FROM_SOURCE": "OFF",
+        "GRAPHAR_ENABLE_SANITIZER": "ON"
+      }
+    },
+    {
+      "name": "debug-arrow-source",
+      "displayName": "Debug (Arrow From Source)",
+      "description": "Debug, Arrow built from source, sanitizer enabled",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build_debug_arrow_source",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "BUILD_ARROW_FROM_SOURCE": "ON",
+        "GRAPHAR_ENABLE_SANITIZER": "ON"
+      }
+    },
+    {
+      "name": "release",
+      "displayName": "Release",
+      "description": "Release, Arrow prebuilt, sanitizer disabled",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build_release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_ARROW_FROM_SOURCE": "OFF",
+        "GRAPHAR_ENABLE_SANITIZER": "OFF"
+      }
+    },
+    {
+      "name": "release-arrow-source",
+      "displayName": "Release (Arrow From Source)",
+      "description": "Release, Arrow built from source, sanitizer disabled",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build_release_arrow_source",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "BUILD_ARROW_FROM_SOURCE": "ON",
+        "GRAPHAR_ENABLE_SANITIZER": "OFF"
+      }
+    },
+    {
+      "name": "debug-coverage",
+      "displayName": "CI Debug Coverage",
+      "description": "Match ci.yml debug: Debug + coverage + prebuilt Arrow",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/build_ci_debug_coverage",
+      "cacheVariables": {
+        "GRAPHAR_ENABLE_COVERAGE": "ON"
+      }
+    },
+    {
+      "name": "relwithdebinfo",
+      "displayName": "CI RelWithDebInfo",
+      "description": "Match ci.yml release test stage: RelWithDebInfo + prebuilt Arrow",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build_ci_relwithdebinfo",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "BUILD_ARROW_FROM_SOURCE": "OFF",
+        "GRAPHAR_ENABLE_SANITIZER": "OFF"
+      }
+    },
+    {
+      "name": "static-arrow-debug",
+      "displayName": "CI Static Arrow Debug",
+      "description": "Match ci.yml static arrow stage: Debug + USE_STATIC_ARROW",
+      "inherits": "debug",
+      "binaryDir": "${sourceDir}/build_ci_static_arrow_debug",
+      "cacheVariables": {
+        "USE_STATIC_ARROW": "ON"
+      }
+    },
+    {
+      "name": "nightly-debug-arrow-source",
+      "displayName": "Nightly Debug Arrow Source",
+      "description": "Match ci-nightly debug: Debug + Arrow from source",
+      "inherits": "debug-arrow-source",
+      "binaryDir": "${sourceDir}/build_nightly_debug_arrow_source",
+      "cacheVariables": {
+        "BUILD_BENCHMARKS": "OFF"
+      }
+    },
+    {
+      "name": "nightly-relwithdebinfo-arrow-source",
+      "displayName": "Nightly RelWithDebInfo Arrow Source",
+      "description": "Match ci-nightly release: RelWithDebInfo + Arrow from source",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build_nightly_relwithdebinfo_arrow_source",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "BUILD_ARROW_FROM_SOURCE": "ON",
+        "GRAPHAR_ENABLE_SANITIZER": "OFF",
+        "BUILD_BENCHMARKS": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "debug",
+      "configurePreset": "debug"
+    },
+    {
+      "name": "debug-arrow-source",
+      "configurePreset": "debug-arrow-source"
+    },
+    {
+      "name": "release",
+      "configurePreset": "release"
+    },
+    {
+      "name": "release-arrow-source",
+      "configurePreset": "release-arrow-source"
+    },
+    {
+      "name": "debug-coverage",
+      "configurePreset": "debug-coverage"
+    },
+    {
+      "name": "relwithdebinfo",
+      "configurePreset": "relwithdebinfo"
+    },
+    {
+      "name": "static-arrow-debug",
+      "configurePreset": "static-arrow-debug"
+    },
+    {
+      "name": "nightly-debug-arrow-source",
+      "configurePreset": "nightly-debug-arrow-source"
+    },
+    {
+      "name": "nightly-relwithdebinfo-arrow-source",
+      "configurePreset": "nightly-relwithdebinfo-arrow-source"
+    }
+  ]
+}

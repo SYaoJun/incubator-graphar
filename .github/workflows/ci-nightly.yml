@@ -59,42 +59,34 @@ jobs:
         git clone https://github.com/apache/incubator-graphar-testing.git $GAR_TEST_DATA --depth 1
 
     - name: CMake-debug
+      working-directory: "cpp"
       run: |
-        mkdir build-debug
-        pushd build-debug
-        cmake ../cpp -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON -DBUILD_EXAMPLES=ON -DBUILD_ARROW_FROM_SOURCE=ON
-        popd
+        cmake --preset nightly-debug-arrow-source
 
     - name: Build GraphAr-debug
+      working-directory: "cpp"
       run: |
-        pushd build-debug
-        make -j$(nproc)
-        make graphar-ccache-stats
-        popd
+        cmake --build --preset nightly-debug-arrow-source
+        cmake --build --preset nightly-debug-arrow-source --target graphar-ccache-stats
         
     - name: Test-debug
+      working-directory: "cpp/build_nightly_debug_arrow_source"
       run: |
-        pushd build-debug
         ctest --output-on-failure
-        popd
 
 
     - name: CMake-release
+      working-directory: "cpp"
       run: |
-        mkdir build-release
-        pushd build-release
-        cmake ../cpp -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_TESTS=ON -DBUILD_EXAMPLES=ON -DBUILD_ARROW_FROM_SOURCE=ON
-        popd
+        cmake --preset nightly-relwithdebinfo-arrow-source
 
     - name: Build GraphAr-release
+      working-directory: "cpp"
       run: |
-        pushd build-release
-        make -j$(nproc)
-        make graphar-ccache-stats
-        popd
+        cmake --build --preset nightly-relwithdebinfo-arrow-source
+        cmake --build --preset nightly-relwithdebinfo-arrow-source --target graphar-ccache-stats
 
     - name: Test-release
+      working-directory: "cpp/build_nightly_relwithdebinfo_arrow_source"
       run: |
-        pushd build-release
         ctest --output-on-failure
-        popd

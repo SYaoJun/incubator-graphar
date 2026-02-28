@@ -92,9 +92,7 @@ jobs:
     - name: CMake
       working-directory: "cpp"
       run: |
-        mkdir build
-        cd build
-        cmake .. -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON -DBUILD_EXAMPLES=ON -DBUILD_BENCHMARKS=ON -DGRAPHAR_ENABLE_COVERAGE=ON
+        cmake --preset debug-coverage
 
     - name: clang-format
       run: |
@@ -109,7 +107,7 @@ jobs:
         pre-commit run --hook-stage commit-msg --commit-msg-filename .git/COMMIT_EDITMSG 
 
     - name: cpplint
-      working-directory: "cpp/build"
+      working-directory: "cpp/build_ci_debug_coverage"
       run: |
         function ec() { [[ "$1" == "-h" ]] && { shift && eval $* > /dev/null 2>&1; ec=$?; echo $ec; } || eval $*; ec=$?; }
 
@@ -126,30 +124,30 @@ jobs:
         fi
 
     - name: Build Docs
-      working-directory: "cpp/build"
+      working-directory: "cpp/build_ci_debug_coverage"
       run: |
         cmake -DENABLE_DOCS=ON ..
         make docs
 
     - name: Build GraphAr
-      working-directory: "cpp/build"
-      run: make -j$(nproc)
+      working-directory: "cpp"
+      run: cmake --build --preset debug-coverage
 
     - name: Test
-      working-directory: "cpp/build"
+      working-directory: "cpp/build_ci_debug_coverage"
       run: |
         export ASAN_OPTIONS=detect_leaks=0
         ctest --output-on-failure
 
     - name: Benchmark
-      working-directory: "cpp/build"
+      working-directory: "cpp/build_ci_debug_coverage"
       run: |
         ./graph_info_benchmark
         ./arrow_chunk_reader_benchmark
         ./label_filter_benchmark
 
     - name: Generate coverage info
-      working-directory: "cpp/build"
+      working-directory: "cpp/build_ci_debug_coverage"
       run: |
         lcov --capture --directory . --output-file coverage.info
         lcov --extract coverage.info '*/src/graphar/*' --output-file coverage.info
@@ -165,16 +163,13 @@ jobs:
     - name: test release build type
       working-directory: "cpp"
       run: |
-        mkdir build-release
-        pushd build-release
-        cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_TESTS=ON -DBUILD_EXAMPLES=ON -DBUILD_BENCHMARKS=ON
-        make -j$(nproc)
+        cmake --preset relwithdebinfo
+        cmake --build --preset relwithdebinfo
         export ASAN_OPTIONS=detect_leaks=0
-        ctest --output-on-failure
-        popd
+        ctest --test-dir build_ci_relwithdebinfo --output-on-failure
 
     - name: Benchmark-release
-      working-directory: "cpp/build-release"
+      working-directory: "cpp/build_ci_relwithdebinfo"
       run: |
         ./graph_info_benchmark
         ./arrow_chunk_reader_benchmark
@@ -183,20 +178,17 @@ jobs:
     - name: Use Static Arrow
       working-directory: "cpp"
       run: |
-        mkdir build-static
-        pushd build-static
-        cmake .. -DUSE_STATIC_ARROW=ON -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON -DBUILD_EXAMPLES=ON -DBUILD_BENCHMARKS=ON
-        make -j$(nproc)
+        cmake --preset static-arrow-debug
+        cmake --build --preset static-arrow-debug
         export ASAN_OPTIONS=detect_leaks=0
-        ctest --output-on-failure
-        popd
+        ctest --test-dir build_ci_static_arrow_debug --output-on-failure
 
     - name: Upload libgraphar.a artifact
       if: github.event_name == 'push'
       uses: actions/upload-artifact@v4
       with:
         name: ubuntu-libgraphar.a
-        path: cpp/build-static/libgraphar.a
+        path: cpp/build_ci_static_arrow_debug/libgraphar.a
 
   macos:
     name: macos latest C++
@@ -230,14 +222,11 @@ jobs:
     - name: Build GraphAr
       working-directory: "cpp"
       run: |
-        mkdir build
-        pushd build
-        cmake .. -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON -DBUILD_EXAMPLES=ON -DBUILD_BENCHMARKS=ON
-        make -j$(nproc)
-        popd
+        cmake --preset debug
+        cmake --build --preset debug
 
     - name: Running Test
-      working-directory: "cpp/build"
+      working-directory: "cpp/build_debug"
       run: |
         export ASAN_OPTIONS=detect_leaks=0
         ctest --output-on-failure
@@ -245,16 +234,13 @@ jobs:
     - name: test release build type
       working-directory: "cpp"
       run: |
-        mkdir build-release
-        pushd build-release
-        cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_TESTS=ON -DBUILD_EXAMPLES=ON -DBUILD_BENCHMARKS=ON
-        make -j$(nproc)
+        cmake --preset relwithdebinfo
+        cmake --build --preset relwithdebinfo
         export ASAN_OPTIONS=detect_leaks=0
-        ctest --output-on-failure
-        popd
+        ctest --test-dir build_ci_relwithdebinfo --output-on-failure
 
     - name: Benchmark-release
-      working-directory: "cpp/build-release"
+      working-directory: "cpp/build_ci_relwithdebinfo"
       run: |
         ./graph_info_benchmark
         ./arrow_chunk_reader_benchmark
@@ -263,18 +249,15 @@ jobs:
     - name: Use Static Arrow
       working-directory: "cpp"
       run: |
-        mkdir build-static
-        pushd build-static
-        cmake .. -DUSE_STATIC_ARROW=ON -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON -DBUILD_EXAMPLES=ON -DBUILD_BENCHMARKS=ON
-        make -j$(nproc)
+        cmake --preset static-arrow-debug
+        cmake --build --preset static-arrow-debug
         export ASAN_OPTIONS=detect_leaks=0
         export ASAN_OPTIONS=detect_container_overflow=0
-        ctest --output-on-failure
-        popd
+        ctest --test-dir build_ci_static_arrow_debug --output-on-failure
 
     - name: Upload libgraphar.a artifact
       if: github.event_name == 'push'
       uses: actions/upload-artifact@v4
       with:
         name: macos-${{ matrix.macos-version }}-libgraphar.a
-        path: cpp/build-static/libgraphar.a
+        path: cpp/build_ci_static_arrow_debug/libgraphar.a
