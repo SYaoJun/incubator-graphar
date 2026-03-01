@@ -44,9 +44,20 @@ Status CastToAny(std::shared_ptr<arrow::Array> array,
 template <>
 Status CastToAny<Type::STRING>(std::shared_ptr<arrow::Array> array,
                                std::any& any) {  // NOLINT
-  using ArrayType = typename TypeToArrowType<Type::STRING>::ArrayType;
-  auto column = std::dynamic_pointer_cast<ArrayType>(array);
-  any = column->GetString(0);
+  if (array->IsNull(0)) {
+    any = std::any();
+    return Status::OK();
+  }
+  // Handle both StringArray (utf8) and LargeStringArray (large_utf8)
+  if (auto large_col =
+          std::dynamic_pointer_cast<arrow::LargeStringArray>(array)) {
+    any = large_col->GetString(0);
+  } else if (auto col =
+                 std::dynamic_pointer_cast<arrow::StringArray>(array)) {
+    any = col->GetString(0);
+  } else {
+    return Status::TypeError("Expected a string array type.");
+  }
   return Status::OK();
 }
 

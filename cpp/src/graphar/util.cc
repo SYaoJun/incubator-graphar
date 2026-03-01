@@ -102,8 +102,18 @@ Result<const void*> GetArrowArrayData(
 }
 
 std::string ValueGetter<std::string>::Value(const void* data, int64_t offset) {
-  return std::string(
-      reinterpret_cast<const arrow::LargeStringArray*>(data)->GetView(offset));
+  // The void* may point to either a StringArray (utf8) or
+  // LargeStringArray (large_utf8). Check the type to avoid
+  // memory corruption from mismatched offset types (int32 vs int64).
+  auto array = reinterpret_cast<const arrow::Array*>(data);
+  if (array->type_id() == arrow::Type::LARGE_STRING) {
+    return std::string(
+        reinterpret_cast<const arrow::LargeStringArray*>(data)->GetView(
+            offset));
+  } else {
+    return std::string(
+        reinterpret_cast<const arrow::StringArray*>(data)->GetView(offset));
+  }
 }
 
 }  // namespace graphar::util

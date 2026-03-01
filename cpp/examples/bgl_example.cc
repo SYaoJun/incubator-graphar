@@ -86,7 +86,6 @@ int main(int argc, char* argv[]) {
 
   auto v_it_end = vertices->end();
   for (auto it = vertices->begin(); it != v_it_end; ++it) {
-    // FIXME(@acezen): double free error when get string property
     boost::put(id, it.id(), it.property<int64_t>("id").value());
   }
 
