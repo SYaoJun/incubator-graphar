@@ -52,8 +52,7 @@ Status CastToAny<Type::STRING>(std::shared_ptr<arrow::Array> array,
   if (auto large_col =
           std::dynamic_pointer_cast<arrow::LargeStringArray>(array)) {
     any = large_col->GetString(0);
-  } else if (auto col =
-                 std::dynamic_pointer_cast<arrow::StringArray>(array)) {
+  } else if (auto col = std::dynamic_pointer_cast<arrow::StringArray>(array)) {
     any = col->GetString(0);
   } else {
     return Status::TypeError("Expected a string array type.");
@@ -178,10 +177,11 @@ Result<std::vector<IdType>> VerticesCollection::filter(
       tested_label_ids.push_back(std::distance(labels_.begin(), it));
     }
   }
-  if (tested_label_ids.empty())
+  if (tested_label_ids.empty()) {
     return Status::KeyError(
         "query label"
         " does not exist in the vertex.");
+  }
 
   uint64_t* bitmap = new uint64_t[TOT_ROWS_NUM / 64 + 1];
   memset(bitmap, 0, sizeof(uint64_t) * (TOT_ROWS_NUM / 64 + 1));
@@ -196,8 +196,9 @@ Result<std::vector<IdType>> VerticesCollection::filter(
           new_filename.c_str(), row_num, TOT_LABEL_NUM, TESTED_LABEL_NUM,
           tested_label_ids, IsValid, chunk_idx, CHUNK_SIZE, &indices, bitmap,
           QUERY_TYPE::INDEX);
-      if (count != 0 && new_valid_chunk != nullptr)
+      if (count != 0 && new_valid_chunk != nullptr) {
         new_valid_chunk->emplace_back(static_cast<IdType>(chunk_idx));
+      }
     }
   } else {
     for (int chunk_idx = 0; chunk_idx * CHUNK_SIZE < TOT_ROWS_NUM;
@@ -209,8 +210,9 @@ Result<std::vector<IdType>> VerticesCollection::filter(
           new_filename.c_str(), row_num, TOT_LABEL_NUM, TESTED_LABEL_NUM,
           tested_label_ids, IsValid, chunk_idx, CHUNK_SIZE, &indices, bitmap,
           QUERY_TYPE::INDEX);
-      if (count != 0)
+      if (count != 0) {
         valid_chunk_.emplace_back(static_cast<IdType>(chunk_idx));
+      }
     }
   }
   // std::cout << "Total valid count: " << total_count << std::endl;
@@ -516,8 +518,9 @@ Result<T> Vertex::property(const std::string& property) const {
                               " does not exist in the vertex.");
     }
     try {
-      if (!properties_.at(property).has_value())
+      if (!properties_.at(property).has_value()) {
         return Status::TypeError("The value of the ", property, " is null.");
+      }
       T ret = std::any_cast<T>(properties_.at(property));
       return ret;
     } catch (const std::bad_any_cast& e) {
@@ -534,8 +537,9 @@ Result<Date> Vertex::property(const std::string& property) const {
                             " does not exist in the vertex.");
   }
   try {
-    if (!properties_.at(property).has_value())
+    if (!properties_.at(property).has_value()) {
       return Status::TypeError("The value of the ", property, " is null.");
+    }
     Date ret(std::any_cast<Date::c_type>(properties_.at(property)));
     return ret;
   } catch (const std::bad_any_cast& e) {
@@ -551,8 +555,9 @@ Result<Timestamp> Vertex::property(const std::string& property) const {
                             " does not exist in the vertex.");
   }
   try {
-    if (!properties_.at(property).has_value())
+    if (!properties_.at(property).has_value()) {
       return Status::TypeError("The value of the ", property, " is null.");
+    }
     Timestamp ret(std::any_cast<Timestamp::c_type>(properties_.at(property)));
     return ret;
   } catch (const std::bad_any_cast& e) {
@@ -623,8 +628,9 @@ Result<T> Edge::property(const std::string& property) const {
                               " does not exist in the edge.");
     }
     try {
-      if (!properties_.at(property).has_value())
+      if (!properties_.at(property).has_value()) {
         return Status::TypeError("The value of the ", property, " is null.");
+      }
       T ret = std::any_cast<T>(properties_.at(property));
       return ret;
     } catch (const std::bad_any_cast& e) {
@@ -641,8 +647,9 @@ Result<Date> Edge::property(const std::string& property) const {
                             " does not exist in the edge.");
   }
   try {
-    if (!properties_.at(property).has_value())
+    if (!properties_.at(property).has_value()) {
       return Status::TypeError("The value of the ", property, " is null.");
+    }
     Date ret(std::any_cast<Date::c_type>(properties_.at(property)));
     return ret;
   } catch (const std::bad_any_cast& e) {
@@ -658,8 +665,9 @@ Result<Timestamp> Edge::property(const std::string& property) const {
                             " does not exist in the edge.");
   }
   try {
-    if (!properties_.at(property).has_value())
+    if (!properties_.at(property).has_value()) {
       return Status::TypeError("The value of the ", property, " is null.");
+    }
     Timestamp ret(std::any_cast<Timestamp::c_type>(properties_.at(property)));
     return ret;
   } catch (const std::bad_any_cast& e) {
@@ -717,8 +725,9 @@ IdType EdgeIter::destination() {
 }
 
 bool EdgeIter::first_src(const EdgeIter& from, IdType id) {
-  if (from.is_end())
+  if (from.is_end()) {
     return false;
+  }
 
   // ordered_by_dest or unordered_by_dest
   if (adj_list_type_ == AdjListType::ordered_by_dest ||
@@ -737,8 +746,9 @@ bool EdgeIter::first_src(const EdgeIter& from, IdType id) {
       this->refresh();
     }
     while (!this->is_end()) {
-      if (this->source() == id)
+      if (this->source() == id) {
         return true;
+      }
       this->operator++();
     }
     return false;
@@ -748,8 +758,9 @@ bool EdgeIter::first_src(const EdgeIter& from, IdType id) {
   if (adj_list_type_ == AdjListType::unordered_by_source) {
     IdType expect_chunk_index =
         index_converter_->IndexPairToGlobalChunkIndex(id / src_chunk_size_, 0);
-    if (expect_chunk_index > chunk_end_)
+    if (expect_chunk_index > chunk_end_) {
       return false;
+    }
     if (from.global_chunk_index_ >= chunk_end_) {
       return false;
     }
@@ -770,13 +781,16 @@ bool EdgeIter::first_src(const EdgeIter& from, IdType id) {
       vertex_chunk_index_ = id / src_chunk_size_;
       need_refresh = true;
     }
-    if (need_refresh)
+    if (need_refresh) {
       this->refresh();
+    }
     while (!this->is_end()) {
-      if (this->source() == id)
+      if (this->source() == id) {
         return true;
-      if (vertex_chunk_index_ > id / src_chunk_size_)
+      }
+      if (vertex_chunk_index_ > id / src_chunk_size_) {
         return false;
+      }
       this->operator++();
     }
     return false;
@@ -832,8 +846,9 @@ bool EdgeIter::first_src(const EdgeIter& from, IdType id) {
 }
 
 bool EdgeIter::first_dst(const EdgeIter& from, IdType id) {
-  if (from.is_end())
+  if (from.is_end()) {
     return false;
+  }
 
   // ordered_by_source or unordered_by_source
   if (adj_list_type_ == AdjListType::ordered_by_source ||
@@ -852,8 +867,9 @@ bool EdgeIter::first_dst(const EdgeIter& from, IdType id) {
       this->refresh();
     }
     while (!this->is_end()) {
-      if (this->destination() == id)
+      if (this->destination() == id) {
         return true;
+      }
       this->operator++();
     }
     return false;
@@ -863,8 +879,9 @@ bool EdgeIter::first_dst(const EdgeIter& from, IdType id) {
   if (adj_list_type_ == AdjListType::unordered_by_dest) {
     IdType expect_chunk_index =
         index_converter_->IndexPairToGlobalChunkIndex(id / dst_chunk_size_, 0);
-    if (expect_chunk_index > chunk_end_)
+    if (expect_chunk_index > chunk_end_) {
       return false;
+    }
     if (from.global_chunk_index_ >= chunk_end_) {
       return false;
     }
@@ -885,13 +902,16 @@ bool EdgeIter::first_dst(const EdgeIter& from, IdType id) {
       vertex_chunk_index_ = id / dst_chunk_size_;
       need_refresh = true;
     }
-    if (need_refresh)
+    if (need_refresh) {
       this->refresh();
+    }
     while (!this->is_end()) {
-      if (this->destination() == id)
+      if (this->destination() == id) {
         return true;
-      if (vertex_chunk_index_ > id / dst_chunk_size_)
+      }
+      if (vertex_chunk_index_ > id / dst_chunk_size_) {
         return false;
+      }
       this->operator++();
     }
     return false;
