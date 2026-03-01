@@ -323,7 +323,7 @@ Result<std::shared_ptr<arrow::Table>> VertexPropertyArrowChunkReader::GetChunk(
       return GetChunkV2();
     }
   default:
-    return Status::Invalid("unsupport GetChunkVersion ", version);
+    return Status::Invalid("unsupported GetChunkVersion ", version);
   }
 }
 

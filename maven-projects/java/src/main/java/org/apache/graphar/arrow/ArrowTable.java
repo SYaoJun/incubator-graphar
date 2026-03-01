@@ -83,7 +83,7 @@ public interface ArrowTable extends CXXPointer {
          *
          * @param arrayAddress Address of C ArrowArray
          * @param schemaAddress Address of C ArrowSchema
-         * @return ArrowTbale shared pointer Result
+         * @return ArrowTable shared pointer Result
          */
         @CXXValue
         ArrowResult<StdSharedPtr<ArrowTable>> fromArrowArrayAndArrowSchema(

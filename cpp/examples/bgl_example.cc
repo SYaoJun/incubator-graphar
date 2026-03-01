@@ -136,7 +136,7 @@ int main(int argc, char* argv[]) {
   auto maybe_extend_info = vertex_info->AddPropertyGroup(group);
   ASSERT(maybe_extend_info.status().ok());
   auto extend_info = maybe_extend_info.value();
-  // dump the extened vertex info
+  // dump the extended vertex info
   ASSERT(extend_info->IsValidated());
   ASSERT(extend_info->Dump().status().ok());
   ASSERT(extend_info->Save("/tmp/person-new.vertex.yml").ok());

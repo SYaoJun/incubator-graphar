@@ -17,7 +17,6 @@
 
 """Bindings to org.apache.graphar.writer."""
 
-
 from __future__ import annotations
 
 import os
@@ -156,7 +155,7 @@ class EdgeWriter:
         """Create an instance of the Class from Python arguments.
 
         :param prefix: the absolute prefix.
-        :param edge_info: the edge info that describes the ede type.
+        :param edge_info: the edge info that describes the edge type.
         :param adj_list_type: the adj list type for the edge.
         :param vertex_num: vertex number of the primary vertex type
         :param edge_df: the input edge DataFrame.

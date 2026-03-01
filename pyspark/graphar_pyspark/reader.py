@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Bidnings to org.apache.graphar.graph."""
+"""Bindings to org.apache.graphar.graph."""
 
 from __future__ import annotations
 
@@ -393,7 +393,7 @@ class EdgeReader:
 
         :param property_groups: list of property groups.
         :param add_index: flag that add edge index column or not in the final DataFrame.
-        :returns: DataFrame tha contains all property groups chunks of edge.
+        :returns: DataFrame that contains all property groups chunks of edge.
         """
         return DataFrame(
             self._jvm_edge_reader_obj.readMultipleEdgePropertyGroups(
@@ -426,7 +426,7 @@ class EdgeReader:
         """Load the chunks for all property groups as a DataFrame.
 
         :param add_index: flag that add edge index column or not in the final DataFrame.
-        :returns: DataFrame tha contains all property groups chunks of edge.
+        :returns: DataFrame that contains all property groups chunks of edge.
         """
         return DataFrame(
             self._jvm_edge_reader_obj.readAllEdgePropertyGroups(add_index),

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Bidnings to org.apache.graphar.graph."""
+"""Bindings to org.apache.graphar.graph."""
 
 from __future__ import annotations
 
@@ -155,13 +155,15 @@ class GraphWriter:
         self._jvm_graph_writer_obj.PutVertexData(vertex_type, df._jdf, primary_key)
 
     def put_edge_data(self, relation: tuple[str, str, str], df: DataFrame) -> None:
-        """Put the egde datafrme into writer.
+        """Put the edge dataframe into writer.
 
         :param relation: 3-Tuple (source type, edge type, target type) to indicate edge relation.
         :param df: data frame of edge relation.
         """
         relation_jvm = GraphArSession.jvm.scala.Tuple3(
-            relation[0], relation[1], relation[2],
+            relation[0],
+            relation[1],
+            relation[2],
         )
         self._jvm_graph_writer_obj.PutEdgeData(relation_jvm, df._jdf)
 
@@ -199,18 +201,12 @@ class GraphWriter:
         :param version: version of GraphAr format, default is v1.
         """
         if vertex_chunk_size is None:
-            vertex_chunk_size = (
-                GraphArSession.graphar.GeneralParams.defaultVertexChunkSize
-            )
+            vertex_chunk_size = GraphArSession.graphar.GeneralParams.defaultVertexChunkSize
 
         if edge_chunk_size is None:
             edge_chunk_size = GraphArSession.graphar.GeneralParams.defaultEdgeChunkSize
 
-        file_type = (
-            GraphArSession.graphar.GeneralParams.defaultFileType
-            if file_type is None
-            else file_type.value
-        )
+        file_type = GraphArSession.graphar.GeneralParams.defaultFileType if file_type is None else file_type.value
 
         if version is None:
             version = GraphArSession.graphar.GeneralParams.defaultVersion

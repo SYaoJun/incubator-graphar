@@ -284,8 +284,8 @@ Status FileSystem::WriteTableToFile(
   }
 #endif
   default:
-    return Status::Invalid(
-        "Unsupported file type: ", FileTypeToString(file_type), " for wrting.");
+    return Status::Invalid("Unsupported file type: ",
+                           FileTypeToString(file_type), " for writing.");
   }
   return Status::OK();
 }
