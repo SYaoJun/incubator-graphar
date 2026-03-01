@@ -57,6 +57,9 @@ pub(crate) mod graphar {
         /// JSON format.
         #[cxx_name = "JSON"]
         Json = 3,
+        /// Vortex format.
+        #[cxx_name = "VORTEX"]
+        Vortex = 4,
     }
 
     /// The main data type enumeration used by GraphAr.

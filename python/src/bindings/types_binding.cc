@@ -50,6 +50,7 @@ extern "C" void bind_types(pybind11::module_& m) {
       .value("PARQUET", graphar::FileType::PARQUET)
       .value("ORC", graphar::FileType::ORC)
       .value("JSON", graphar::FileType::JSON)
+      .value("VORTEX", graphar::FileType::VORTEX)
       .export_values();
 
   // Bind AdjListType enum

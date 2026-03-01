@@ -235,7 +235,8 @@ static FileType StringToFileType(const std::string& str) {
       {"csv", FileType::CSV},
       {"json", FileType::JSON},
       {"parquet", FileType::PARQUET},
-      {"orc", FileType::ORC}};
+      {"orc", FileType::ORC},
+      {"vortex", FileType::VORTEX}};
   try {
     return str2file_type.at(str.c_str());
   } catch (const std::exception& e) {
@@ -248,7 +249,8 @@ static const char* FileTypeToString(FileType file_type) {
       {FileType::CSV, "csv"},
       {FileType::JSON, "json"},
       {FileType::PARQUET, "parquet"},
-      {FileType::ORC, "orc"}};
+      {FileType::ORC, "orc"},
+      {FileType::VORTEX, "vortex"}};
   return file_type2string.at(file_type);
 }
 

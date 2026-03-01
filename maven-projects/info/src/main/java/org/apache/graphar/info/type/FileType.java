@@ -22,7 +22,8 @@ package org.apache.graphar.info.type;
 public enum FileType {
     CSV,
     PARQUET,
-    ORC;
+    ORC,
+    VORTEX;
 
     public String toString() {
         switch (this) {
@@ -32,6 +33,8 @@ public enum FileType {
                 return "parquet";
             case ORC:
                 return "orc";
+            case VORTEX:
+                return "vortex";
             default:
                 throw new IllegalArgumentException("Unknown file type: " + this);
         }
@@ -48,6 +51,8 @@ public enum FileType {
                 return PARQUET;
             case "orc":
                 return ORC;
+            case "vortex":
+                return VORTEX;
             default:
                 throw new IllegalArgumentException("Unknown file type: " + fileType);
         }

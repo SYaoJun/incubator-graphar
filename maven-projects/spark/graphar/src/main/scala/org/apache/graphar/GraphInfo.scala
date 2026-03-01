@@ -97,6 +97,7 @@ object FileType extends Enumeration {
   val PARQUET = Value(1)
   val ORC = Value(2)
   val JSON = Value(3)
+  val VORTEX = Value(4)
 
   /**
    * File type to string.
@@ -111,6 +112,7 @@ object FileType extends Enumeration {
     case FileType.PARQUET => "parquet"
     case FileType.ORC     => "orc"
     case FileType.JSON    => "json"
+    case FileType.VORTEX  => "vortex"
     case _ => throw new IllegalArgumentException("Unknown file type")
   }
 
@@ -127,6 +129,7 @@ object FileType extends Enumeration {
     case "parquet" => FileType.PARQUET
     case "orc"     => FileType.ORC
     case "json"    => FileType.JSON
+    case "vortex"  => FileType.VORTEX
     case _ => throw new IllegalArgumentException("Unknown file type: " + str)
   }
 

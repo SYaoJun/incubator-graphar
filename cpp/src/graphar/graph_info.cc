@@ -134,7 +134,7 @@ bool PropertyGroup::HasProperty(const std::string& property_name) const {
 bool PropertyGroup::IsValidated() const {
   if (prefix_.empty() ||
       (file_type_ != FileType::CSV && file_type_ != FileType::PARQUET &&
-       file_type_ != FileType::ORC)) {
+       file_type_ != FileType::ORC && file_type_ != FileType::VORTEX)) {
     return false;
   }
   if (properties_.empty()) {
@@ -198,7 +198,7 @@ bool AdjacentList::IsValidated() const {
   }
   if (prefix_.empty() ||
       (file_type_ != FileType::CSV && file_type_ != FileType::PARQUET &&
-       file_type_ != FileType::ORC)) {
+       file_type_ != FileType::ORC && file_type_ != FileType::VORTEX)) {
     return false;
   }
   return true;

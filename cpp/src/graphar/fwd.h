@@ -74,7 +74,13 @@ class DataType;
 /** Defines how multiple values are handled for a given property key */
 enum class Cardinality : int32_t { SINGLE, LIST, SET };
 /** Type of file format */
-enum class FileType : int32_t { CSV = 0, PARQUET = 1, ORC = 2, JSON = 3 };
+enum class FileType : int32_t {
+  CSV = 0,
+  PARQUET = 1,
+  ORC = 2,
+  JSON = 3,
+  VORTEX = 4
+};
 enum class SelectType : int32_t { PROPERTIES = 0, LABELS = 1 };
 /** GetChunkVersion: V1 use scanner, V2 use FileReader */
 enum class GetChunkVersion : int32_t { AUTO = 0, V1 = 1, V2 = 2 };

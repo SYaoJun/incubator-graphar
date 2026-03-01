@@ -51,6 +51,8 @@ option(GRAPHAR_BUILD_STATIC "Build GraphAr as static libraries" OFF)
 option(BUILD_ARROW_FROM_SOURCE "Build Arrow from source" OFF)
 option(GRAPHAR_ENABLE_SANITIZER "Enable address sanitizer (Debug builds only)" ON)
 option(GRAPHAR_ENABLE_COVERAGE "Enable coverage instrumentation (Debug builds only)" OFF)
+option(USE_VORTEX "Enable Vortex file format support via vortex-cxx" OFF)
+set(VORTEX_SOURCE_DIR "" CACHE PATH "Path to the vortex source directory (containing vortex-cxx/)")
 
 if (USE_STATIC_ARROW)
     set(GRAPHAR_BUILD_STATIC ON)
@@ -358,6 +360,15 @@ macro(build_graphar)
                 ArrowAcero::arrow_acero_shared -Wl,--no-whole-archive)
         endif()
     endif()
+
+    # Vortex support
+    if(USE_VORTEX)
+        target_compile_definitions(graphar PRIVATE GRAPHAR_VORTEX)
+        target_link_libraries(graphar PRIVATE vortex)
+        if(APPLE)
+            target_link_libraries(graphar PRIVATE "-framework CoreFoundation" "-framework Security")
+        endif()
+    endif()
 endmacro()
 
 macro(build_graphar_with_arrow_bundled)
@@ -429,6 +440,13 @@ macro(build_graphar_with_arrow_bundled)
     if (CURL_FOUND)
         target_link_libraries(graphar PUBLIC ${CURL_LIBRARIES})
     endif()
+
+    # Vortex support
+    if(USE_VORTEX)
+        target_compile_definitions(graphar PRIVATE GRAPHAR_VORTEX)
+        target_link_libraries(graphar PRIVATE vortex)
+        # Apple frameworks already linked above for bundled arrow build
+    endif()
 endmacro()
 
 # ------------------------------------------------------------------------------
@@ -437,6 +455,24 @@ endmacro()
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/src)
 include_directories(src)
+
+# Vortex support via FetchContent
+if(USE_VORTEX)
+    if(CMAKE_VERSION VERSION_LESS "3.22")
+        message(FATAL_ERROR "USE_VORTEX requires CMake >= 3.22, current version is ${CMAKE_VERSION}")
+    endif()
+    if(NOT VORTEX_SOURCE_DIR)
+        message(FATAL_ERROR "USE_VORTEX is ON but VORTEX_SOURCE_DIR is not set. "
+                "Please set -DVORTEX_SOURCE_DIR=/path/to/vortex")
+    endif()
+    include(FetchContent)
+    FetchContent_Declare(
+        vortex
+        SOURCE_DIR ${VORTEX_SOURCE_DIR}
+        SOURCE_SUBDIR vortex-cxx
+    )
+    FetchContent_MakeAvailable(vortex)
+endif()
 
 if (BUILD_ARROW_FROM_SOURCE)
     # the necessary dependencies for building arrow from source
@@ -636,6 +672,13 @@ if (BUILD_TESTS)
                 endif()
             endif()
         endif()
+        if(USE_VORTEX)
+            target_compile_definitions(${target} PRIVATE GRAPHAR_VORTEX)
+            target_link_libraries(${target} PRIVATE vortex)
+            if(APPLE)
+                target_link_libraries(${target} PRIVATE "-framework CoreFoundation" "-framework Security")
+            endif()
+        endif()
         target_include_directories(${target} PRIVATE ${PROJECT_SOURCE_DIR}/include $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/Catch2/single_include>)
         include(CTest)
         include(Catch)
@@ -650,6 +693,9 @@ if (BUILD_TESTS)
     add_test(test_graph SRCS test/test_graph.cc)
     add_test(test_multi_label SRCS test/test_multi_label.cc)
     add_test(test_multi_property SRCS test/test_multi_property.cc)
+    if(USE_VORTEX)
+        add_test(test_vortex SRCS test/test_vortex.cc)
+    endif()
 
     # enable_testing()
 endif()

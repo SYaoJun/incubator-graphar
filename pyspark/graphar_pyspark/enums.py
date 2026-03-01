@@ -61,6 +61,7 @@ class FileType(Enum):
     JSON = "json"
     PARQUET = "parquet"
     ORC = "orc"
+    VORTEX = "vortex"
 
     @staticmethod
     def from_scala(jvm_obj: JavaObject) -> "FileType":

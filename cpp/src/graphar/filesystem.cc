@@ -23,6 +23,12 @@
 #ifdef ARROW_ORC
 #include "arrow/adapters/orc/adapter.h"
 #endif
+#ifdef GRAPHAR_VORTEX
+#include "arrow/c/bridge.h"
+#include "vortex/file.hpp"
+#include "vortex/scan.hpp"
+#include "vortex/write_options.hpp"
+#endif
 #include <arrow/compute/api.h>
 #include "arrow/api.h"
 #include "arrow/csv/api.h"
@@ -106,6 +112,7 @@ std::shared_ptr<ds::FileFormat> FileSystem::GetFileFormat(
   case FileType::ORC:
     return std::make_shared<ds::OrcFileFormat>();
 #endif
+  // VORTEX does not use Arrow Dataset FileFormat, handled separately
   default:
     return nullptr;
   }
@@ -114,6 +121,30 @@ std::shared_ptr<ds::FileFormat> FileSystem::GetFileFormat(
 Result<std::shared_ptr<arrow::Table>> FileSystem::ReadFileToTable(
     const std::string& path, FileType file_type,
     const std::vector<int>& column_indices) const noexcept {
+#ifdef GRAPHAR_VORTEX
+  if (file_type == FileType::VORTEX) {
+    // Read via vortex-cxx: open file, scan all data, convert to Arrow Table
+    auto vortex_file = vortex::VortexFile::Open(path);
+    auto scan_builder = vortex_file.CreateScanBuilder();
+    auto c_stream = std::move(scan_builder).IntoStream();
+    GAR_RETURN_ON_ARROW_ERROR_AND_ASSIGN(
+        auto batch_reader, arrow::ImportRecordBatchReader(&c_stream));
+    GAR_RETURN_ON_ARROW_ERROR_AND_ASSIGN(auto table,
+                                         batch_reader->ToTable());
+    if (!column_indices.empty()) {
+      // Select specified columns
+      std::vector<std::shared_ptr<arrow::Field>> fields;
+      std::vector<std::shared_ptr<arrow::ChunkedArray>> columns;
+      for (auto idx : column_indices) {
+        fields.push_back(table->field(idx));
+        columns.push_back(table->column(idx));
+      }
+      auto schema = std::make_shared<arrow::Schema>(fields);
+      table = arrow::Table::Make(schema, columns);
+    }
+    return table;
+  }
+#endif
   parquet::arrow::FileReaderBuilder builder;
   auto open_file_status = builder.OpenFile(path);
   if (!open_file_status.ok()) {
@@ -139,6 +170,20 @@ Result<std::shared_ptr<arrow::Table>> FileSystem::ReadFileToTable(
 Result<std::shared_ptr<arrow::Table>> FileSystem::ReadFileToTable(
     const std::string& path, FileType file_type,
     const util::FilterOptions& options) const noexcept {
+#ifdef GRAPHAR_VORTEX
+  if (file_type == FileType::VORTEX) {
+    // Read via vortex-cxx with pushdown support
+    auto vortex_file = vortex::VortexFile::Open(path);
+    auto scan_builder = vortex_file.CreateScanBuilder();
+    // TODO: map GraphAr FilterOptions to vortex filter/projection expressions
+    auto c_stream = std::move(scan_builder).IntoStream();
+    GAR_RETURN_ON_ARROW_ERROR_AND_ASSIGN(
+        auto batch_reader, arrow::ImportRecordBatchReader(&c_stream));
+    GAR_RETURN_ON_ARROW_ERROR_AND_ASSIGN(auto table,
+                                         batch_reader->ToTable());
+    return table;
+  }
+#endif
   std::shared_ptr<ds::FileFormat> format = GetFileFormat(file_type);
   GAR_RETURN_ON_ARROW_ERROR_AND_ASSIGN(
       auto factory, arrow::dataset::FileSystemDatasetFactory::Make(
@@ -283,9 +328,24 @@ Status FileSystem::WriteTableToFile(
     break;
   }
 #endif
+#ifdef GRAPHAR_VORTEX
+  case FileType::VORTEX: {
+    // Close the Arrow output_stream first since vortex manages its own I/O
+    RETURN_NOT_ARROW_OK(output_stream->Close());
+    // Convert Arrow Table to ArrowArrayStream via Arrow C Data Interface
+    auto batch_reader = std::make_shared<arrow::TableBatchReader>(*table);
+    struct ArrowArrayStream c_stream;
+    RETURN_NOT_ARROW_OK(
+        arrow::ExportRecordBatchReader(batch_reader, &c_stream));
+    // Write via vortex-cxx
+    vortex::VortexWriteOptions write_options;
+    write_options.WriteArrayStream(c_stream, path);
+    break;
+  }
+#endif
   default:
     return Status::Invalid(
-        "Unsupported file type: ", FileTypeToString(file_type), " for wrting.");
+        "Unsupported file type: ", FileTypeToString(file_type), " for writing.");
   }
   return Status::OK();
 }
