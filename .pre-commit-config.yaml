@@ -39,6 +39,12 @@ repos:
     - id: typos
       files: ^python/
       args: [--force-exclude]
+  - repo: https://github.com/cheshirekow/cmake-format-precommit
+    rev: v0.6.13
+    hooks:
+    - id: cmake-format
+      args: [--config-files, cmake_format.py]
+
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v21.1.2
     hooks:
