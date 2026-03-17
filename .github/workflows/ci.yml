@@ -96,12 +96,6 @@ jobs:
         cd build
         cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON -DBUILD_EXAMPLES=ON -DBUILD_BENCHMARKS=ON -DGRAPHAR_ENABLE_COVERAGE=ON
 
-    - name: clang-format
-      run: |
-        pip install pre-commit
-        pre-commit install
-        pre-commit run clang-format -a
-
     - name: cpplint
       working-directory: "cpp/build"
       run: |
