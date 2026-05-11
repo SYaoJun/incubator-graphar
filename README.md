@@ -446,6 +446,15 @@ Unlike java-FFI, the Java library will be implemented by pure java, which will c
 The PySpark library is developed as bindings to the GraphAr
 Spark library. See [GraphAr PySpark
 Library](./pyspark) for details about the PySpark library.
+## Join Community
+
+
+
+| DingTalk |
+| :---: |
+| <img src="./docs/images/dingtalk.png" width="150" alt="DingTalk QR Code"/> |
+| Scan to join |
+
 
 ## Contributing
 
