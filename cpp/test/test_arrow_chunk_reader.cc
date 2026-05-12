@@ -215,8 +215,8 @@ TEST_CASE_METHOD(GlobalFixture, "ArrowChunkReader") {
           filter_property);
       auto filter = _Equal(_Property(filter_property), _Literal("female"));
       std::vector<std::string> expected_cols;
-      expected_cols.push_back("firstName");
-      expected_cols.push_back("lastName");
+      expected_cols.emplace_back("firstName");
+      expected_cols.emplace_back("lastName");
       // print reader result
       auto walkReader =
           [&](std::shared_ptr<VertexPropertyArrowChunkReader>& reader) {

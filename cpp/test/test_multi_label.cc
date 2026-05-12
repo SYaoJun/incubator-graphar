@@ -24,6 +24,7 @@
 #include <ostream>
 #include <string>
 #include "arrow/api.h"
+#include "graphar/api/high_level_reader.h"
 #include "graphar/arrow/chunk_reader.h"
 #include "graphar/arrow/chunk_writer.h"
 #include "graphar/graph_info.h"
@@ -93,5 +94,95 @@ TEST_CASE_METHOD(GlobalFixture, "test_multi_label_builder") {
   REQUIRE(reader->seek(0).ok());
   REQUIRE(reader->GetLabelChunk().status().ok());
   REQUIRE(reader->next_chunk().ok());
+}
+
+TEST_CASE_METHOD(GlobalFixture, "test_vertices_with_multiple_labels") {
+  std::cout << "Test vertices with multiple labels" << std::endl;
+
+  std::string path = test_data_dir + "/ldbc/parquet/" + "ldbc.graph.yml";
+  auto graph_info = graphar::GraphInfo::Load(path).value();
+  std::string type = "organisation";
+
+  // Test verticesWithMultipleLabels
+  std::vector<std::string> filter_labels = {"university", "company"};
+  auto maybe_vertices_collection =
+      VerticesCollection::verticesWithMultipleLabels(filter_labels, graph_info,
+                                                     type);
+  REQUIRE(!maybe_vertices_collection.has_error());
+  auto vertices_collection = maybe_vertices_collection.value();
+
+  // Verify the filtered vertices contain both labels
+  auto vertex_info = graph_info->GetVertexInfo(type);
+  auto all_labels = vertex_info->GetLabels();
+  REQUIRE(!all_labels.empty());
+
+  // Iterate through filtered vertices and verify they have both labels
+  size_t count = 0;
+  for (auto it = vertices_collection->begin(); it != vertices_collection->end();
+       ++it) {
+    auto labels_result = it.label();
+    REQUIRE(labels_result.status().ok());
+    auto vertex_labels = labels_result.value();
+    // Check that the vertex has both "university" and "company" labels
+    bool has_university = false;
+    bool has_company = false;
+    for (const auto& label : vertex_labels) {
+      if (label == "university")
+        has_university = true;
+      if (label == "company")
+        has_company = true;
+    }
+    REQUIRE(has_university);
+    REQUIRE(has_company);
+    count++;
+  }
+  std::cout << "Filtered " << count
+            << " vertices with labels 'university' and 'company'" << std::endl;
+  REQUIRE(count > 0);
+}
+
+TEST_CASE_METHOD(GlobalFixture, "test_vertices_with_multiple_labels_by_acero") {
+  std::cout << "Test vertices with multiple labels by Acero" << std::endl;
+
+  std::string path = test_data_dir + "/ldbc/parquet/" + "ldbc.graph.yml";
+  auto graph_info = graphar::GraphInfo::Load(path).value();
+  std::string type = "organisation";
+
+  // Test verticesWithMultipleLabelsbyAcero
+  std::vector<std::string> filter_labels = {"university", "company"};
+  auto maybe_vertices_collection =
+      VerticesCollection::verticesWithMultipleLabelsbyAcero(filter_labels,
+                                                            graph_info, type);
+  REQUIRE(!maybe_vertices_collection.has_error());
+  auto vertices_collection = maybe_vertices_collection.value();
+
+  // Verify the filtered vertices contain both labels
+  auto vertex_info = graph_info->GetVertexInfo(type);
+  auto all_labels = vertex_info->GetLabels();
+  REQUIRE(!all_labels.empty());
+
+  // Iterate through filtered vertices and verify they have both labels
+  size_t count = 0;
+  for (auto it = vertices_collection->begin(); it != vertices_collection->end();
+       ++it) {
+    auto labels_result = it.label();
+    REQUIRE(labels_result.status().ok());
+    auto vertex_labels = labels_result.value();
+    // Check that the vertex has both "university" and "company" labels
+    bool has_university = false;
+    bool has_company = false;
+    for (const auto& label : vertex_labels) {
+      if (label == "university")
+        has_university = true;
+      if (label == "company")
+        has_company = true;
+    }
+    REQUIRE(has_university);
+    REQUIRE(has_company);
+    count++;
+  }
+  std::cout << "Filtered (by Acero) " << count
+            << " vertices with labels 'university' and 'company'" << std::endl;
+  REQUIRE(count > 0);
 }
 }  // namespace graphar
