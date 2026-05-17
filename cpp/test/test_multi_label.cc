@@ -20,9 +20,7 @@
 #include <arrow/compute/api.h>
 #include <cstddef>
 #include <iostream>
-#include <memory>
 #include <ostream>
-#include <string>
 #include "arrow/api.h"
 #include "graphar/arrow/chunk_reader.h"
 #include "graphar/arrow/chunk_writer.h"
