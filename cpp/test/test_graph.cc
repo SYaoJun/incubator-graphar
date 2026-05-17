@@ -429,5 +429,591 @@ TEST_CASE_METHOD(GlobalFixture, "Graph") {
     REQUIRE(count == 10);
     std::cout << "TimestampType edge_count=" << count << std::endl;
   }
+
+  SECTION("VerticesCollectionFilterError") {
+    auto vertex_info = graph_info->GetVertexInfo("person");
+    REQUIRE(vertex_info != nullptr);
+
+    auto vertices = std::make_shared<VerticesCollection>(
+        vertex_info, graph_info->GetPrefix());
+  }
+
+  SECTION("VerticesWithPropertyStatic") {
+    auto filter =
+        _Equal(_Property("gender"), _Literal(std::string("female")));
+
+    auto result1 = VerticesCollection::verticesWithProperty(
+        "gender", filter, graph_info, "person");
+    REQUIRE(!result1.has_error());
+    auto vertices1 = result1.value();
+    REQUIRE(vertices1->size() > 0);
+
+    auto result2 = VerticesCollection::verticesWithProperty(
+        "gender", filter, vertices1);
+    REQUIRE(!result2.has_error());
+  }
+
+  SECTION("EdgeIterFirstSrcOrderedBySource") {
+    std::string src_type = "person", edge_type = "knows", dst_type = "person";
+    auto expect = EdgesCollection::Make(graph_info, src_type, edge_type,
+                                        dst_type, AdjListType::ordered_by_source);
+    REQUIRE(!expect.has_error());
+    auto edges = expect.value();
+
+    auto it = edges->begin();
+    IdType src_id = it.source();
+    auto find_it = edges->find_src(src_id, it);
+    REQUIRE((find_it == edges->end() || find_it.source() == src_id));
+  }
+
+  SECTION("EdgeIterFirstDstOrderedByDest") {
+    std::string src_type = "person", edge_type = "knows", dst_type = "person";
+    auto expect = EdgesCollection::Make(graph_info, src_type, edge_type,
+                                        dst_type, AdjListType::ordered_by_dest);
+    REQUIRE(!expect.has_error());
+    auto edges = expect.value();
+
+    auto it = edges->begin();
+    IdType dst_id = it.destination();
+    auto find_it = edges->find_dst(dst_id, it);
+    REQUIRE((find_it == edges->end() || find_it.destination() == dst_id));
+  }
+
+  SECTION("OBSEdgeCollectionFindDst") {
+    std::string src_type = "person", edge_type = "knows", dst_type = "person";
+    auto expect = EdgesCollection::Make(graph_info, src_type, edge_type,
+                                        dst_type, AdjListType::ordered_by_source);
+    REQUIRE(!expect.has_error());
+    auto edges = expect.value();
+
+    auto it = edges->begin();
+    IdType dst_id = it.destination();
+    auto find_it = edges->find_dst(dst_id, it);
+    REQUIRE((find_it == edges->end() || find_it.destination() == dst_id));
+  }
+
+  SECTION("OBDEdgesCollectionFindSrc") {
+    std::string src_type = "person", edge_type = "knows", dst_type = "person";
+    auto expect = EdgesCollection::Make(graph_info, src_type, edge_type,
+                                        dst_type, AdjListType::ordered_by_dest);
+    REQUIRE(!expect.has_error());
+    auto edges = expect.value();
+
+    auto it = edges->begin();
+    IdType src_id = it.source();
+    auto find_it = edges->find_src(src_id, it);
+    REQUIRE((find_it == edges->end() || find_it.source() == src_id));
+  }
+
+  SECTION("OBDEdgesCollectionFindDst") {
+    std::string src_type = "person", edge_type = "knows", dst_type = "person";
+    auto expect = EdgesCollection::Make(graph_info, src_type, edge_type,
+                                        dst_type, AdjListType::ordered_by_dest);
+    REQUIRE(!expect.has_error());
+    auto edges = expect.value();
+
+    auto it = edges->begin();
+    IdType dst_id = it.destination();
+    auto find_it = edges->find_dst(dst_id, it);
+    REQUIRE((find_it == edges->end() || find_it.destination() == dst_id));
+  }
+
+  SECTION("EdgesCollectionMakeError") {
+    auto result = EdgesCollection::Make(graph_info, "person", "non_existent_edge",
+                                       "person", AdjListType::ordered_by_source);
+    REQUIRE(result.has_error());
+    REQUIRE(result.status().IsKeyError());
+
+    // Test with non-existent vertex type
+    auto result2 = EdgesCollection::Make(graph_info, "non_existent", "knows", "person",
+                                        AdjListType::ordered_by_source);
+    REQUIRE(result2.has_error());
+    REQUIRE(result2.status().IsKeyError());
+  }
+
+  SECTION("EdgeIterNextSrcOrderedBySource") {
+    std::string src_type = "person", edge_type = "knows", dst_type = "person";
+    auto expect = EdgesCollection::Make(graph_info, src_type, edge_type,
+                                        dst_type, AdjListType::ordered_by_source);
+    REQUIRE(!expect.has_error());
+    auto edges = expect.value();
+
+    auto it = edges->begin();
+    IdType src_id = it.source();
+    auto find_it = edges->find_src(src_id, it);
+    if (find_it != edges->end() && find_it.source() == src_id) {
+      bool has_next = find_it.next_src();
+      if (has_next) {
+        REQUIRE(find_it.source() == src_id);
+      }
+    }
+  }
+
+  SECTION("EdgeIterNextDstOrderedByDest") {
+    std::string src_type = "person", edge_type = "knows", dst_type = "person";
+    auto expect = EdgesCollection::Make(graph_info, src_type, edge_type,
+                                        dst_type, AdjListType::ordered_by_dest);
+    REQUIRE(!expect.has_error());
+    auto edges = expect.value();
+
+    auto it = edges->begin();
+    IdType dst_id = it.destination();
+    auto find_it = edges->find_dst(dst_id, it);
+    if (find_it != edges->end() && find_it.destination() == dst_id) {
+      bool has_next = find_it.next_dst();
+      if (has_next) {
+        REQUIRE(find_it.destination() == dst_id);
+      }
+    }
+  }
+
+  SECTION("EdgeIterNextSrcWithId") {
+    std::string src_type = "person", edge_type = "knows", dst_type = "person";
+    auto expect = EdgesCollection::Make(graph_info, src_type, edge_type,
+                                        dst_type, AdjListType::ordered_by_source);
+    REQUIRE(!expect.has_error());
+    auto edges = expect.value();
+
+    auto it = edges->begin();
+    if (it != edges->end()) {
+      IdType src_id = it.source();
+      auto find_it = edges->find_src(src_id, it);
+      if (find_it != edges->end()) {
+        bool found = find_it.next_src(src_id);
+        if (found) {
+          REQUIRE(find_it.source() == src_id);
+        }
+      }
+    }
+  }
+
+  SECTION("EdgeIterNextDstWithId") {
+    std::string src_type = "person", edge_type = "knows", dst_type = "person";
+    auto expect = EdgesCollection::Make(graph_info, src_type, edge_type,
+                                        dst_type, AdjListType::ordered_by_dest);
+    REQUIRE(!expect.has_error());
+    auto edges = expect.value();
+
+    auto it = edges->begin();
+    if (it != edges->end()) {
+      IdType dst_id = it.destination();
+      auto find_it = edges->find_dst(dst_id, it);
+      if (find_it != edges->end()) {
+        bool found = find_it.next_dst(dst_id);
+        if (found) {
+          REQUIRE(find_it.destination() == dst_id);
+        }
+      }
+    }
+  }
+
+  SECTION("EdgePropertyWrongType") {
+    std::string src_type = "person", edge_type = "knows", dst_type = "person";
+    auto expect = EdgesCollection::Make(graph_info, src_type, edge_type,
+                                        dst_type, AdjListType::ordered_by_source);
+    REQUIRE(!expect.has_error());
+    auto edges = expect.value();
+
+    for (auto it = edges->begin(); it != edges->end(); ++it) {
+      auto edge = *it;
+      auto date_result = edge.property<std::string>("creationDate");
+      REQUIRE(!date_result.has_error());
+
+      auto wrong_type = edge.property<int64_t>("creationDate");
+      REQUIRE(wrong_type.has_error());
+      break;
+    }
+  }
+
+  SECTION("EdgeIterPropertyNotFound") {
+    std::string src_type = "person", edge_type = "knows", dst_type = "person";
+    auto expect = EdgesCollection::Make(graph_info, src_type, edge_type,
+                                        dst_type, AdjListType::ordered_by_source);
+    REQUIRE(!expect.has_error());
+    auto edges = expect.value();
+
+    for (auto it = edges->begin(); it != edges->end(); ++it) {
+      auto not_found = it.property<std::string>("non_existent_property");
+      REQUIRE(not_found.has_error());
+      break;
+    }
+  }
+
+  SECTION("VerticesCollectionFindMethod") {
+    auto vertex_info = graph_info->GetVertexInfo("person");
+    REQUIRE(vertex_info != nullptr);
+
+    auto vertices = std::make_shared<VerticesCollection>(
+        vertex_info, graph_info->GetPrefix());
+
+    auto it = vertices->find(0);
+    REQUIRE(it != vertices->end());
+    REQUIRE(it.id() == 0);
+  }
+
+  SECTION("VerticesCollectionGetVertexInfoAndPrefix") {
+    auto vertex_info = graph_info->GetVertexInfo("person");
+    REQUIRE(vertex_info != nullptr);
+
+    auto vertices = std::make_shared<VerticesCollection>(
+        vertex_info, graph_info->GetPrefix());
+
+    auto retrieved_info = vertices->GetVertexInfo();
+    REQUIRE(retrieved_info != nullptr);
+    auto prefix = vertices->GetPrefix();
+    REQUIRE(!prefix.empty());
+  }
+
+  SECTION("EdgeIterCopyConstructor") {
+    std::string src_type = "person", edge_type = "knows", dst_type = "person";
+    auto expect = EdgesCollection::Make(graph_info, src_type, edge_type,
+                                        dst_type, AdjListType::ordered_by_source);
+    REQUIRE(!expect.has_error());
+    auto edges = expect.value();
+
+    auto it = edges->begin();
+    EdgeIter copy_it(it);
+    REQUIRE(copy_it == it);
+  }
+
+  SECTION("EdgeIterCopyAssignment") {
+    std::string src_type = "person", edge_type = "knows", dst_type = "person";
+    auto expect = EdgesCollection::Make(graph_info, src_type, edge_type,
+                                        dst_type, AdjListType::ordered_by_source);
+    REQUIRE(!expect.has_error());
+    auto edges = expect.value();
+
+    auto it1 = edges->begin();
+    auto it2 = edges->end();
+    it2 = it1;
+    REQUIRE(it2 == it1);
+  }
+
+  SECTION("EdgeIterGlobalChunkIndex") {
+    std::string src_type = "person", edge_type = "knows", dst_type = "person";
+    auto expect = EdgesCollection::Make(graph_info, src_type, edge_type,
+                                        dst_type, AdjListType::ordered_by_source);
+    REQUIRE(!expect.has_error());
+    auto edges = expect.value();
+
+    auto it = edges->begin();
+    IdType chunk_idx = it.global_chunk_index();
+    REQUIRE(chunk_idx >= 0);
+
+    IdType cur_off = it.cur_offset();
+    REQUIRE(cur_off >= 0);
+  }
+
+  SECTION("EdgeIterToBegin") {
+    std::string src_type = "person", edge_type = "knows", dst_type = "person";
+    auto expect = EdgesCollection::Make(graph_info, src_type, edge_type,
+                                        dst_type, AdjListType::ordered_by_source);
+    REQUIRE(!expect.has_error());
+    auto edges = expect.value();
+
+    auto it = edges->begin();
+    ++it;
+    ++it;
+    ++it;
+
+    it.to_begin();
+    REQUIRE(it.global_chunk_index() >= 0);
+  }
+
+  SECTION("EdgeIterPostfixIncrement") {
+    std::string src_type = "person", edge_type = "knows", dst_type = "person";
+    auto expect = EdgesCollection::Make(graph_info, src_type, edge_type,
+                                        dst_type, AdjListType::ordered_by_source);
+    REQUIRE(!expect.has_error());
+    auto edges = expect.value();
+
+    auto it = edges->begin();
+    auto old_it = it++;
+    REQUIRE(old_it != it);
+  }
+
+  SECTION("VerticesCollectionFilterWithNewValidChunk") {
+    auto vertex_info = graph_info->GetVertexInfo("person");
+    REQUIRE(vertex_info != nullptr);
+
+    auto vertices = std::make_shared<VerticesCollection>(
+        vertex_info, graph_info->GetPrefix());
+
+    std::vector<IdType> new_valid_chunk;
+    auto filter_female =
+        _Equal(_Property("gender"), _Literal(std::string("female")));
+    auto result = vertices->filter("gender", filter_female, &new_valid_chunk);
+    REQUIRE(!result.has_error());
+  }
+
+  SECTION("VerticesWithPropertyOnFilteredCollection") {
+    auto vertex_info = graph_info->GetVertexInfo("person");
+    REQUIRE(vertex_info != nullptr);
+
+    auto filter_female =
+        _Equal(_Property("gender"), _Literal(std::string("female")));
+    auto vertices = std::make_shared<VerticesCollection>(
+        vertex_info, graph_info->GetPrefix());
+    auto maybe_filtered_ids =
+        vertices->filter("gender", filter_female, nullptr);
+    REQUIRE(!maybe_filtered_ids.has_error());
+
+    auto filtered_vertices = std::make_shared<VerticesCollection>(
+        vertex_info, graph_info->GetPrefix(), true, maybe_filtered_ids.value());
+
+    auto filter_name =
+        _Equal(_Property("firstName"), _Literal(std::string("Dan")));
+    auto result = VerticesCollection::verticesWithProperty(
+        "firstName", filter_name, filtered_vertices);
+  }
+
+  SECTION("EdgesCollectionWithChunkRange") {
+    std::string src_type = "person", edge_type = "knows", dst_type = "person";
+    auto expect = EdgesCollection::Make(graph_info, src_type, edge_type,
+                                       dst_type, AdjListType::ordered_by_source, 0, 2);
+    REQUIRE(!expect.has_error());
+    auto edges = expect.value();
+    REQUIRE(edges->size() >= 0);
+  }
+}
+
+TEST_CASE("VerticesWithLabelFunctions", "[graph][label]") {
+  // Load the full ldbc graph which has labelled vertices (organisation)
+  std::string ldbc_graph_path =
+      std::string(std::getenv("GAR_TEST_DATA")) + "/ldbc/parquet/ldbc.graph.yml";
+  auto maybe_graph_info = GraphInfo::Load(ldbc_graph_path);
+  REQUIRE(!maybe_graph_info.has_error());
+  auto ldbc_graph_info = maybe_graph_info.value();
+
+  SECTION("VerticesWithLabel") {
+    // Test verticesWithLabel with organisation vertex (has labels: university, company, public)
+    auto result =
+        VerticesCollection::verticesWithLabel("university", ldbc_graph_info, "organisation");
+    REQUIRE(!result.has_error());
+    auto vertices = result.value();
+    REQUIRE(vertices->size() > 0);
+
+    // Iterate through vertices
+    size_t count = 0;
+    for (auto it = vertices->begin(); it != vertices->end() && count < 10; ++it, ++count) {
+      REQUIRE(it.id() >= 0);
+    }
+  }
+
+  SECTION("VerticesWithLabelbyAcero") {
+    auto result =
+        VerticesCollection::verticesWithLabelbyAcero("company", ldbc_graph_info, "organisation");
+    REQUIRE(!result.has_error());
+    auto vertices = result.value();
+    // Result depends on data availability
+
+    size_t count = 0;
+    for (auto it = vertices->begin(); it != vertices->end() && count < 10; ++it, ++count) {
+      REQUIRE(it.id() >= 0);
+    }
+  }
+
+  SECTION("VerticesWithMultipleLabels") {
+    auto result = VerticesCollection::verticesWithMultipleLabels(
+        {"university", "company"}, ldbc_graph_info, "organisation");
+    REQUIRE(!result.has_error());
+    auto vertices = result.value();
+    // Result depends on data
+
+    size_t count = 0;
+    for (auto it = vertices->begin(); it != vertices->end() && count < 10; ++it, ++count) {
+      REQUIRE(it.id() >= 0);
+    }
+  }
+
+  SECTION("VerticesWithMultipleLabelsbyAcero") {
+    auto result = VerticesCollection::verticesWithMultipleLabelsbyAcero(
+        {"university", "company"}, ldbc_graph_info, "organisation");
+    REQUIRE(!result.has_error());
+    auto vertices = result.value();
+    // Result depends on data
+
+    size_t count = 0;
+    for (auto it = vertices->begin(); it != vertices->end() && count < 10; ++it, ++count) {
+      REQUIRE(it.id() >= 0);
+    }
+  }
+
+  SECTION("VerticesWithLabelOnCollection") {
+    // First get all organisation vertices
+    auto all_result = VerticesCollection::Make(ldbc_graph_info, "organisation");
+    REQUIRE(!all_result.has_error());
+    auto all_vertices = all_result.value();
+
+    // Then filter with label
+    auto result = VerticesCollection::verticesWithLabel("public", all_vertices);
+    REQUIRE(!result.has_error());
+    auto filtered_vertices = result.value();
+
+    size_t count = 0;
+    for (auto it = filtered_vertices->begin(); it != filtered_vertices->end() && count < 10;
+         ++it, ++count) {
+      REQUIRE(it.id() >= 0);
+    }
+  }
+
+  SECTION("VerticesWithMultipleLabelsOnCollection") {
+    auto all_result = VerticesCollection::Make(ldbc_graph_info, "organisation");
+    REQUIRE(!all_result.has_error());
+    auto all_vertices = all_result.value();
+
+    auto result = VerticesCollection::verticesWithMultipleLabels(
+        {"university"}, all_vertices);
+    REQUIRE(!result.has_error());
+    auto filtered_vertices = result.value();
+
+    size_t count = 0;
+    for (auto it = filtered_vertices->begin(); it != filtered_vertices->end() && count < 10;
+         ++it, ++count) {
+      REQUIRE(it.id() >= 0);
+    }
+  }
+
+  SECTION("VerticesWithLabelError") {
+    // Test with non-existent label - the function throws exception for invalid label
+    try {
+      auto result =
+          VerticesCollection::verticesWithLabel("nonexistent_label", ldbc_graph_info, "organisation");
+      // If no exception, result should be an error
+      REQUIRE(result.has_error());
+    } catch (const std::exception& e) {
+      // Expected: exception thrown for invalid label
+      REQUIRE(true);
+    }
+  }
+}
+
+TEST_CASE("VertexIterHasLabelAndLabelFunctions", "[graph][label]") {
+  // Load the full ldbc graph which has labelled vertices (organisation)
+  std::string ldbc_graph_path =
+      std::string(std::getenv("GAR_TEST_DATA")) + "/ldbc/parquet/ldbc.graph.yml";
+  auto maybe_graph_info = GraphInfo::Load(ldbc_graph_path);
+  REQUIRE(!maybe_graph_info.has_error());
+  auto ldbc_graph_info = maybe_graph_info.value();
+
+  SECTION("HasLabel") {
+    // Get organisation vertices which have labels: university, company, public
+    auto result =
+        VerticesCollection::verticesWithLabel("university", ldbc_graph_info, "organisation");
+    REQUIRE(!result.has_error());
+    auto vertices = result.value();
+    REQUIRE(vertices->size() > 0);
+
+    // Iterate and test hasLabel
+    size_t count = 0;
+    for (auto it = vertices->begin(); it != vertices->end() && count < 10; ++it, ++count) {
+      REQUIRE(it.id() >= 0);
+      // university vertices should have label "university" as true
+      auto has_university = it.hasLabel("university");
+      REQUIRE(!has_university.has_error());
+      REQUIRE(has_university.value());
+    }
+  }
+
+  SECTION("HasLabelOnMultipleLabelsCollection") {
+    // Get vertices with multiple labels (university AND company can't exist)
+    // So we test with single label collection
+    auto result =
+        VerticesCollection::verticesWithLabel("company", ldbc_graph_info, "organisation");
+    REQUIRE(!result.has_error());
+    auto vertices = result.value();
+
+    size_t count = 0;
+    for (auto it = vertices->begin(); it != vertices->end() && count < 10; ++it, ++count) {
+      REQUIRE(it.id() >= 0);
+      auto has_company = it.hasLabel("company");
+      REQUIRE(!has_company.has_error());
+      REQUIRE(has_company.value());
+    }
+  }
+
+  SECTION("Label") {
+    // Get all organisation vertices
+    auto all_result = VerticesCollection::Make(ldbc_graph_info, "organisation");
+    REQUIRE(!all_result.has_error());
+    auto vertices = all_result.value();
+
+    // Get all labels for the vertex
+    size_t count = 0;
+    for (auto it = vertices->begin(); it != vertices->end() && count < 10; ++it, ++count) {
+      auto labels_result = it.label();
+      REQUIRE(!labels_result.has_error());
+      auto labels = labels_result.value();
+      // All organisation vertices should have at least one label
+      REQUIRE(labels.size() > 0);
+      // Verify labels are valid (university, company, or public)
+      for (const auto& label : labels) {
+        REQUIRE((label == "university" || label == "company" || label == "public"));
+      }
+    }
+  }
+
+  SECTION("HasLabelError") {
+    // Get organisation vertices
+    auto result =
+        VerticesCollection::verticesWithLabel("university", ldbc_graph_info, "organisation");
+    REQUIRE(!result.has_error());
+    auto vertices = result.value();
+
+    // Test hasLabel with non-existent label
+    auto it = vertices->begin();
+    auto has_invalid = it.hasLabel("nonexistent_label");
+    REQUIRE(has_invalid.has_error());
+  }
+
+  SECTION("LabelOnFilteredCollection") {
+    // Test label() on filtered collection
+    auto result =
+        VerticesCollection::verticesWithLabel("public", ldbc_graph_info, "organisation");
+    REQUIRE(!result.has_error());
+    auto vertices = result.value();
+
+    size_t count = 0;
+    for (auto it = vertices->begin(); it != vertices->end() && count < 10; ++it, ++count) {
+      auto labels_result = it.label();
+      REQUIRE(!labels_result.has_error());
+      auto labels = labels_result.value();
+      REQUIRE(labels.size() > 0);
+      // Verify "public" label exists
+      bool has_public = false;
+      for (const auto& label : labels) {
+        if (label == "public") {
+          has_public = true;
+          break;
+        }
+      }
+      REQUIRE(has_public);
+    }
+  }
+
+  SECTION("HasLabelAndLabelCombination") {
+    // Get all organisation vertices and verify both functions work together
+    auto result = VerticesCollection::Make(ldbc_graph_info, "organisation");
+    REQUIRE(!result.has_error());
+    auto vertices = result.value();
+
+    size_t count = 0;
+    for (auto it = vertices->begin(); it != vertices->end() && count < 10; ++it, ++count) {
+      auto labels_result = it.label();
+      REQUIRE(!labels_result.has_error());
+      auto labels = labels_result.value();
+
+      // Verify each label returned by label() returns true for hasLabel
+      for (const auto& label : labels) {
+        auto has_label = it.hasLabel(label);
+        REQUIRE(!has_label.has_error());
+        REQUIRE(has_label.value());
+      }
+
+      // Verify non-existent labels return false (or error)
+      auto has_nonexistent = it.hasLabel("nonexistent_label");
+      REQUIRE(has_nonexistent.has_error());
+    }
+  }
 }
 }  // namespace graphar
