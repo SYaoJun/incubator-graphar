@@ -523,7 +523,7 @@ Result<std::string> VertexInfo::Dump() const noexcept {
     node["type"] = impl_->type_;
     node["chunk_size"] = std::to_string(impl_->chunk_size_);
     node["prefix"] = impl_->prefix_;
-    if (impl_->labels_.size() > 0) {
+    if (!impl_->labels_.empty()) {
       node["labels"];
       for (const auto& label : impl_->labels_) {
         node["labels"].PushBack();
@@ -636,9 +636,6 @@ class EdgeInfo::Impl {
       for (const auto& p : pg->GetProperties()) {
         if (p.cardinality != Cardinality::SINGLE) {
           // edge property only supports single cardinality
-          std::cout
-              << "Edge property only supports single cardinality, but got: "
-              << CardinalityToString(p.cardinality) << std::endl;
           return false;
         }
         if (check_property_unique_set.find(p.name) !=
@@ -1105,6 +1102,9 @@ namespace {
 static std::string PathToDirectory(const std::string& path) {
   if (path.rfind("s3://", 0) == 0) {
     size_t t = path.find_last_of('?');
+    if (t == std::string::npos) {
+      t = path.size();
+    }
     std::string prefix = path.substr(0, t);
     std::string suffix = path.substr(t);
     const size_t last_slash_idx = prefix.rfind('/');
@@ -1192,15 +1192,15 @@ static Result<std::shared_ptr<GraphInfo>> ConstructGraphInfo(
 
 class GraphInfo::Impl {
  public:
-  Impl(const std::string& graph_name, VertexInfoVector vertex_infos,
+  Impl(std::string  graph_name, VertexInfoVector vertex_infos,
        EdgeInfoVector edge_infos, const std::vector<std::string>& labels,
-       const std::string& prefix, std::shared_ptr<const InfoVersion> version,
+       std::string  prefix, std::shared_ptr<const InfoVersion> version,
        const std::unordered_map<std::string, std::string>& extra_info)
-      : name_(graph_name),
+      : name_(std::move(graph_name)),
         vertex_infos_(std::move(vertex_infos)),
         edge_infos_(std::move(edge_infos)),
         labels_(labels),
-        prefix_(prefix),
+        prefix_(std::move(prefix)),
         version_(std::move(version)),
         extra_info_(extra_info) {
     for (size_t i = 0; i < vertex_infos_.size(); i++) {
@@ -1453,7 +1453,7 @@ Result<std::string> GraphInfo::Dump() const {
                            edge->GetDstType()) +
           ".edge.yaml";
     }
-    if (impl_->labels_.size() > 0) {
+    if (!impl_->labels_.empty()) {
       node["labels"];
       for (const auto& label : impl_->labels_) {
         node["labels"].PushBack();
@@ -1463,7 +1463,7 @@ Result<std::string> GraphInfo::Dump() const {
     if (impl_->version_ != nullptr) {
       node["version"] = impl_->version_->ToString();
     }
-    if (impl_->extra_info_.size() > 0) {
+    if (!impl_->extra_info_.empty()) {
       node["extra_info"];
       for (const auto& pair : impl_->extra_info_) {
         ::Yaml::Node extra_info_node;

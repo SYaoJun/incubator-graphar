@@ -497,14 +497,10 @@ EdgeChunkWriter::EdgeChunkWriter(const std::shared_ptr<EdgeInfo>& edge_info,
   chunk_size_ = edge_info_->GetChunkSize();
   switch (adj_list_type) {
   case AdjListType::unordered_by_source:
-    vertex_chunk_size_ = edge_info_->GetSrcChunkSize();
-    break;
   case AdjListType::ordered_by_source:
     vertex_chunk_size_ = edge_info_->GetSrcChunkSize();
     break;
   case AdjListType::unordered_by_dest:
-    vertex_chunk_size_ = edge_info_->GetDstChunkSize();
-    break;
   case AdjListType::ordered_by_dest:
     vertex_chunk_size_ = edge_info_->GetDstChunkSize();
     break;
@@ -765,7 +761,6 @@ Status EdgeChunkWriter::WriteAdjListChunk(
       validate(input_table, vertex_chunk_index, chunk_index, validate_level));
   auto file_type = edge_info_->GetAdjacentList(adj_list_type_)->GetFileType();
   std::vector<int> indices;
-  indices.clear();
   auto schema = input_table->schema();
   int index = schema->GetFieldIndex(GeneralParams::kSrcIndexCol);
   if (index == -1) {
@@ -800,7 +795,6 @@ Status EdgeChunkWriter::WritePropertyChunk(
   auto file_type = property_group->GetFileType();
 
   std::vector<int> indices;
-  indices.clear();
   auto schema = input_table->schema();
   for (auto& property : property_group->GetProperties()) {
     int indice = schema->GetFieldIndex(property.name);
@@ -1088,16 +1082,13 @@ Result<std::shared_ptr<EdgeChunkWriter>> EdgeChunkWriter::Make(
 std::string EdgeChunkWriter::getSortColumnName(AdjListType adj_list_type) {
   switch (adj_list_type) {
   case AdjListType::unordered_by_source:
-    return GeneralParams::kSrcIndexCol;
   case AdjListType::ordered_by_source:
     return GeneralParams::kSrcIndexCol;
   case AdjListType::unordered_by_dest:
-    return GeneralParams::kDstIndexCol;
   case AdjListType::ordered_by_dest:
     return GeneralParams::kDstIndexCol;
   default:
     return GeneralParams::kSrcIndexCol;
   }
-  return GeneralParams::kSrcIndexCol;
 }
 }  // namespace graphar

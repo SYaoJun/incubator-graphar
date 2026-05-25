@@ -89,14 +89,10 @@ EdgeChunkInfoWriter::EdgeChunkInfoWriter(
   chunk_size_ = edge_info_->GetChunkSize();
   switch (adj_list_type) {
   case AdjListType::unordered_by_source:
-    vertex_chunk_size_ = edge_info_->GetSrcChunkSize();
-    break;
   case AdjListType::ordered_by_source:
     vertex_chunk_size_ = edge_info_->GetSrcChunkSize();
     break;
   case AdjListType::unordered_by_dest:
-    vertex_chunk_size_ = edge_info_->GetDstChunkSize();
-    break;
   case AdjListType::ordered_by_dest:
     vertex_chunk_size_ = edge_info_->GetDstChunkSize();
     break;

@@ -173,10 +173,11 @@ Result<std::vector<IdType>> VerticesCollection::filter(
       tested_label_ids.push_back(std::distance(labels_.begin(), it));
     }
   }
-  if (tested_label_ids.empty())
+  if (tested_label_ids.empty()){
     return Status::KeyError(
         "query label"
         " does not exist in the vertex.");
+  }
 
   uint64_t* bitmap = new uint64_t[TOT_ROWS_NUM / 64 + 1];
   memset(bitmap, 0, sizeof(uint64_t) * (TOT_ROWS_NUM / 64 + 1));
