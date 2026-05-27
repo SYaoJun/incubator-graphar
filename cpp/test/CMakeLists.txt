@@ -38,6 +38,7 @@ macro(add_graphar_test target)
   if(BUILD_ARROW_FROM_SOURCE)
     target_include_directories(${target} SYSTEM BEFORE PRIVATE ${GAR_ARROW_INCLUDE_DIR})
     if(APPLE)
+      find_package(Protobuf REQUIRED)
       target_link_libraries(${target}
                             PRIVATE -Wl,-force_load
                                     gar_arrow_static

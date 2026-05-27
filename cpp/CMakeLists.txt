@@ -228,7 +228,7 @@ function(graphar_create_merged_static_lib output_target)
   endif()
 
   set(output_lib_path
-      ${BUILD_OUTPUT_ROOT_DIRECTORY}${CMAKE_STATIC_LIBRARY_PREFIX}${ARG_NAME}${CMAKE_STATIC_LIBRARY_SUFFIX}
+      ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_STATIC_LIBRARY_PREFIX}${ARG_NAME}${CMAKE_STATIC_LIBRARY_SUFFIX}
   )
 
   set(all_library_paths $<TARGET_FILE:${ARG_ROOT}>)

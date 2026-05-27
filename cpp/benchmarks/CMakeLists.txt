@@ -29,26 +29,15 @@ macro(add_benchmark target)
   add_executable(${target} ${add_test_SRCS})
   target_compile_features(${target} PRIVATE cxx_std_${GAR_CXX_STANDARD})
   target_include_directories(${target} PRIVATE ${PROJECT_SOURCE_DIR}/thirdparty)
-  if(APPLE)
-    target_link_libraries(${target}
-                          PRIVATE benchmark::benchmark_main
-                                  graphar
-                                  Arrow::arrow_shared
-                                  Parquet::parquet_shared
-                                  ${CMAKE_DL_LIBS})
-  else()
-    target_link_libraries(${target}
-                          PRIVATE benchmark::benchmark_main
-                                  graphar
-                                  parquet
-                                  arrow
-                                  ${CMAKE_DL_LIBS})
-  endif()
   if(BUILD_ARROW_FROM_SOURCE)
     target_include_directories(${target} SYSTEM BEFORE PRIVATE ${GAR_ARROW_INCLUDE_DIR})
     if(APPLE)
+      find_package(Protobuf REQUIRED)
       target_link_libraries(${target}
-                            PRIVATE -Wl,-force_load
+                            PRIVATE benchmark::benchmark_main
+                                    graphar
+                                    ${CMAKE_DL_LIBS}
+                                    -Wl,-force_load
                                     ${GAR_ARROW_STATIC_LIB}
                                     "${GAR_PARQUET_STATIC_LIB}"
                                     "${GAR_ARROW_BUNDLED_DEPS_STATIC_LIB}"
@@ -58,12 +47,31 @@ macro(add_benchmark target)
                                     "-framework Network")
     else()
       target_link_libraries(${target}
-                            PRIVATE -Wl,--exclude-libs,ALL
+                            PRIVATE benchmark::benchmark_main
+                                    graphar
+                                    ${CMAKE_DL_LIBS}
+                                    -Wl,--exclude-libs,ALL
                                     -Wl,--whole-archive
                                     ${GAR_ARROW_STATIC_LIB}
                                     "${GAR_PARQUET_STATIC_LIB}"
                                     "${GAR_ARROW_BUNDLED_DEPS_STATIC_LIB}"
                                     -Wl,--no-whole-archive)
+    endif()
+  else()
+    if(APPLE)
+      target_link_libraries(${target}
+                            PRIVATE benchmark::benchmark_main
+                                    graphar
+                                    Arrow::arrow_shared
+                                    Parquet::parquet_shared
+                                    ${CMAKE_DL_LIBS})
+    else()
+      target_link_libraries(${target}
+                            PRIVATE benchmark::benchmark_main
+                                    graphar
+                                    parquet
+                                    arrow
+                                    ${CMAKE_DL_LIBS})
     endif()
   endif()
 endmacro()

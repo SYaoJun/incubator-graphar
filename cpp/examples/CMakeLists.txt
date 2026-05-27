@@ -33,6 +33,7 @@ foreach(f ${EXAMPLE_FILES})
   if(BUILD_ARROW_FROM_SOURCE)
     target_include_directories(${E_NAME} SYSTEM BEFORE PRIVATE ${GAR_ARROW_INCLUDE_DIR})
     if(APPLE)
+      find_package(Protobuf REQUIRED)
       target_link_libraries(${E_NAME}
                             PRIVATE -Wl,-force_load
                                     ${GAR_ARROW_STATIC_LIB}

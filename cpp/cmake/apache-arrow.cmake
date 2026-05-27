@@ -118,9 +118,6 @@ function(build_arrow)
   set(GAR_ARROW_INCLUDE_DIR
       "${GAR_ARROW_PREFIX}/include"
       CACHE INTERNAL "arrow include directory")
-  set(GAR_ARROW_BUILD_BYPRODUCTS
-      "${GAR_ARROW_STATIC_LIB}" "${GAR_PARQUET_STATIC_LIB}" "${GAR_DATASET_STATIC_LIB}"
-      "${GAR_ARROW_COMPUTE_STATIC_LIB}")
 
   find_package(Threads)
   find_package(Arrow QUIET)
@@ -135,11 +132,27 @@ function(build_arrow)
         CACHE INTERNAL "arrow version")
   endif()
 
+  # Set up Acero library paths before using them in byproducts
+  if(ARROW_VERSION_TO_BUILD GREATER_EQUAL "12.0.0")
+    set(GAR_ARROW_ACERO_STATIC_LIB_FILENAME
+        "${CMAKE_STATIC_LIBRARY_PREFIX}arrow_acero${CMAKE_STATIC_LIBRARY_SUFFIX}")
+    set(GAR_ARROW_ACERO_STATIC_LIB
+        "${GAR_ARROW_STATIC_LIBRARY_DIR}/${GAR_ARROW_ACERO_STATIC_LIB_FILENAME}"
+        CACHE INTERNAL "acero lib")
+  endif()
+
+  set(GAR_ARROW_BUILD_BYPRODUCTS
+      "${GAR_ARROW_STATIC_LIB}" "${GAR_PARQUET_STATIC_LIB}" "${GAR_DATASET_STATIC_LIB}"
+      "${GAR_ARROW_COMPUTE_STATIC_LIB}" "${GAR_ARROW_BUNDLED_DEPS_STATIC_LIB}")
+  if(ARROW_VERSION_TO_BUILD GREATER_EQUAL "12.0.0")
+    list(APPEND GAR_ARROW_BUILD_BYPRODUCTS "${GAR_ARROW_ACERO_STATIC_LIB}")
+  endif()
+
   if(DEFINED ENV{GAR_ARROW_SOURCE_URL})
     set(GAR_ARROW_SOURCE_URL "$ENV{GAR_ARROW_SOURCE_URL}")
   else()
     set(GAR_ARROW_SOURCE_URL
-        "https://www.apache.org/dyn/closer.lua?action=download&filename=arrow/arrow-${ARROW_VERSION_TO_BUILD}/apache-arrow-${ARROW_VERSION_TO_BUILD}.tar.gz"
+        "https://github.com/apache/arrow/archive/apache-arrow-${ARROW_VERSION_TO_BUILD}.tar.gz"
     )
   endif()
 
@@ -173,17 +186,13 @@ function(build_arrow)
   set_target_properties(${GAR_ARROW_BUNDLED_DEPS_TARGET}
                         PROPERTIES IMPORTED_LOCATION ${GAR_ARROW_BUNDLED_DEPS_STATIC_LIB})
   if(ARROW_VERSION_TO_BUILD GREATER_EQUAL "12.0.0")
-    set(GAR_ARROW_ACERO_STATIC_LIB_FILENAME
-        "${CMAKE_STATIC_LIBRARY_PREFIX}arrow_acero${CMAKE_STATIC_LIBRARY_SUFFIX}")
-    set(GAR_ARROW_ACERO_STATIC_LIB
-        "${GAR_ARROW_STATIC_LIBRARY_DIR}/${GAR_ARROW_ACERO_STATIC_LIB_FILENAME}"
-        CACHE INTERNAL "acero lib")
     set(GAR_ARROW_ACERO_LIBRARY_TARGET gar_acero_static)
     add_library(${GAR_ARROW_ACERO_LIBRARY_TARGET} STATIC IMPORTED)
     set_target_properties(${GAR_ARROW_ACERO_LIBRARY_TARGET}
                           PROPERTIES INTERFACE_INCLUDE_DIRECTORIES
                                      ${GAR_ARROW_INCLUDE_DIR}
                                      IMPORTED_LOCATION ${GAR_ARROW_ACERO_STATIC_LIB})
+    add_dependencies(${GAR_ARROW_ACERO_LIBRARY_TARGET} arrow_ep)
   endif()
   set(GAR_ARROW_COMPUTE_LIBRARY_TARGET gar_arrow_compute_static)
   add_library(${GAR_ARROW_COMPUTE_LIBRARY_TARGET} STATIC IMPORTED)
@@ -192,4 +201,8 @@ function(build_arrow)
                                    IMPORTED_LOCATION ${GAR_ARROW_COMPUTE_STATIC_LIB})
 
   add_dependencies(${GAR_ARROW_LIBRARY_TARGET} arrow_ep)
+  add_dependencies(${GAR_PARQUET_LIBRARY_TARGET} arrow_ep)
+  add_dependencies(${GAR_DATASET_LIBRARY_TARGET} arrow_ep)
+  add_dependencies(${GAR_ARROW_BUNDLED_DEPS_TARGET} arrow_ep)
+  add_dependencies(${GAR_ARROW_COMPUTE_LIBRARY_TARGET} arrow_ep)
 endfunction()
