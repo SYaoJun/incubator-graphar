@@ -26,9 +26,11 @@ module(
 
 # C++ rules
 bazel_dep(name = "rules_cc", version = "0.2.19")
-bazel_dep(name = "platforms", version = "0.0.11")
+bazel_dep(name = "platforms", version = "1.0.0")
 
 # For building non-Bazel (CMake/Make) dependencies
+# NOTE: rules_foreign_cc is pulled transitively by google_benchmark -> libpfm.
+# Force a newer version compatible with Bazel 9.
 bazel_dep(name = "rules_foreign_cc", version = "0.15.1")
 
 # ------------------------------------------------------------------------------
@@ -38,11 +40,11 @@ bazel_dep(name = "catch2", version = "3.8.0")
 bazel_dep(name = "google_benchmark", version = "1.9.1")
 
 # ------------------------------------------------------------------------------
-# Register toolchains for rules_foreign_cc
+# Single version overrides for compatibility with Bazel 9
 # ------------------------------------------------------------------------------
-register_toolchains(
-    "@rules_foreign_cc//toolchains:cmake_toolchain",
-    "@rules_foreign_cc//toolchains:ninja_toolchain",
+single_version_override(
+    module_name = "rules_foreign_cc",
+    version = "0.15.1",
 )
 
 # ------------------------------------------------------------------------------

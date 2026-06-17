@@ -16,24 +16,10 @@
 # under the License.
 
 """
-Arrow module extension for using a system-installed Apache Arrow C++.
+Arrow repository rule for using a system-installed Apache Arrow C++.
 
-This extension creates a cc_import repository that wraps the system-installed
-Arrow shared libraries. The user must have Arrow C++ installed on their system.
-
-System requirements:
-    - libarrow-dev (or arrow-devel)
-    - libparquet-dev (or parquet-devel)
-    - Arrow Acero and Dataset modules
-
-The extension searches for Arrow headers in standard locations:
-    /usr/include/arrow
-    /usr/local/include/arrow
-
-And libraries in:
-    /usr/lib/x86_64-linux-gnu
-    /usr/lib64
-    /usr/local/lib
+Creates a repository that wraps the system-installed Arrow shared libraries
+via symlinks, supporting macOS (Homebrew, .dylib) and Linux (.so).
 """
 
 _ARROW_LIBS = [
@@ -43,58 +29,67 @@ _ARROW_LIBS = [
     "parquet",
 ]
 
-def _find_arrow_include(module_ctx):
+def _find_arrow_include(repo_ctx):
     """Find the Arrow include directory."""
     candidates = [
-        "/usr/include",
+        "/opt/homebrew/include",
         "/usr/local/include",
+        "/usr/include",
     ]
     for path in candidates:
-        if module_ctx.path(path + "/arrow/api.h").exists:
+        if repo_ctx.path(path + "/arrow/api.h").exists:
             return path
-    return "/usr/include"  # fallback
+    fail("Arrow headers not found. Install: brew install apache-arrow")
 
-def _find_arrow_lib_dir(module_ctx):
+def _find_arrow_lib_dir(repo_ctx):
     """Find the Arrow library directory."""
     candidates = [
+        "/opt/homebrew/lib",
+        "/usr/local/lib",
         "/usr/lib/x86_64-linux-gnu",
         "/usr/lib64",
-        "/usr/local/lib",
         "/usr/lib/aarch64-linux-gnu",
     ]
     for path in candidates:
-        if module_ctx.path(path + "/libarrow.so").exists:
-            return path
-    return "/usr/lib/x86_64-linux-gnu"  # fallback
+        for ext in [".dylib", ".so"]:
+            if repo_ctx.path(path + "/libarrow" + ext).exists:
+                return path, ext
+    fail("Arrow libraries not found. Install: brew install apache-arrow")
 
-def _arrow_system_impl(module_ctx):
-    """Module extension to create a system Arrow repository."""
+def _arrow_repo_impl(repo_ctx):
+    """Repository rule: symlink Arrow headers/libs and generate BUILD."""
+    include_dir = _find_arrow_include(repo_ctx)
+    lib_dir, lib_ext = _find_arrow_lib_dir(repo_ctx)
 
-    include_dir = _find_arrow_include(module_ctx)
-    lib_dir = _find_arrow_lib_dir(module_ctx)
+    # Symlink all headers as a tree under include/
+    repo_ctx.symlink(include_dir + "/arrow", "include/arrow")
+    repo_ctx.symlink(include_dir + "/parquet", "include/parquet")
 
-    # Create BUILD file for the system Arrow repository
+    # Symlink shared libraries
+    for lib in _ARROW_LIBS:
+        src = "{0}/lib{1}{2}".format(lib_dir, lib, lib_ext)
+        dst = "lib{0}{1}".format(lib, lib_ext)
+        repo_ctx.symlink(src, dst)
+
     build_content = """# System-installed Apache Arrow C++
 load("@rules_cc//cc:defs.bzl", "cc_import", "cc_library")
 
 """
 
-    # Create cc_import targets for each Arrow shared library
     for lib in _ARROW_LIBS:
         build_content += """
 cc_import(
     name = "{lib}_shared",
-    shared_library = "{lib_dir}/lib{lib}.so",
+    shared_library = ":lib{lib}{ext}",
     visibility = ["//visibility:private"],
 )
-""".format(lib = lib, lib_dir = lib_dir)
+""".format(lib = lib, ext = lib_ext)
 
-    # Create a combined cc_library with all headers and libraries
     build_content += """
 cc_library(
     name = "arrow",
-    hdrs = glob(["{include_dir}/arrow/**/*.h"]),
-    includes = ["{include_dir}"],
+    hdrs = glob(["include/arrow/**/*.h"]),
+    strip_include_prefix = "include",
     visibility = ["//visibility:public"],
     deps = [
         ":arrow_shared",
@@ -103,8 +98,8 @@ cc_library(
 
 cc_library(
     name = "arrow_acero",
-    hdrs = glob(["{include_dir}/arrow/**/*.h"]),
-    includes = ["{include_dir}"],
+    hdrs = glob(["include/arrow/**/*.h"]),
+    strip_include_prefix = "include",
     visibility = ["//visibility:public"],
     deps = [
         ":arrow",
@@ -114,8 +109,8 @@ cc_library(
 
 cc_library(
     name = "arrow_dataset",
-    hdrs = glob(["{include_dir}/arrow/**/*.h"]),
-    includes = ["{include_dir}"],
+    hdrs = glob(["include/arrow/**/*.h"]),
+    strip_include_prefix = "include",
     visibility = ["//visibility:public"],
     deps = [
         ":arrow",
@@ -125,17 +120,26 @@ cc_library(
 
 cc_library(
     name = "parquet",
-    hdrs = glob(["{include_dir}/parquet/**/*.h"]),
-    includes = ["{include_dir}"],
+    hdrs = glob(["include/parquet/**/*.h"]),
+    strip_include_prefix = "include",
     visibility = ["//visibility:public"],
     deps = [
         ":arrow",
         ":parquet_shared",
     ],
 )
-""".format(include_dir = include_dir, lib_dir = lib_dir)
+"""
 
-    module_ctx.file("BUILD.bazel", build_content)
+    repo_ctx.file("BUILD.bazel", build_content)
+
+_arrow_repo = repository_rule(
+    implementation = _arrow_repo_impl,
+    local = True,
+)
+
+def _arrow_system_impl(module_ctx):
+    """Module extension that creates the Arrow system repository."""
+    _arrow_repo(name = "arrow")
 
 arrow_system = module_extension(
     implementation = _arrow_system_impl,

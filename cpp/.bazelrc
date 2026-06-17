@@ -19,9 +19,9 @@
 # Build settings
 # ------------------------------------------------------------------------------
 
-# Default to C++17
-build --cxxopt=-std=c++17
-build --host_cxxopt=-std=c++17
+# Default to C++20 (required by Arrow >= 24.0.0)
+build --cxxopt=-std=c++20
+build --host_cxxopt=-std=c++20
 
 # Compiler flags (matching CMakeLists.txt settings)
 build --copt=-Wall
@@ -52,10 +52,6 @@ build:coverage --linkopt=--coverage
 
 # Static build
 build:static --dynamic_mode=off
-
-# Enable C++20 for newer Arrow (>= 24.0.0)
-# build --cxxopt=-std=c++20
-# build --host_cxxopt=-std=c++20
 
 # ------------------------------------------------------------------------------
 # Platform-specific settings

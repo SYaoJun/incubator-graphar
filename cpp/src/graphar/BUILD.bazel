@@ -67,7 +67,7 @@ cc_library(
     hdrs = [":public_headers"],
     copts = GAR_COPTS,
     defines = GAR_DEFINES,
-    includes = ["."],
+    includes = [".."],
     visibility = ["//visibility:public"],
     deps = [
         "//thirdparty:mini_yaml",
