@@ -63,10 +63,13 @@ single_version_override(
 #   - See bazel/README.md for details.
 # ------------------------------------------------------------------------------
 
-# Option 1: Build Arrow from source (uncomment to enable)
-# arrow_build = use_extension("//bazel:arrow_extension.bzl", "arrow_build")
-# use_repo(arrow_build, "arrow")
+# Option 1: Build Arrow from source
+arrow_build = use_extension("//bazel:arrow_extension.bzl", "arrow_build")
+use_repo(arrow_build, "arrow")
 
-# Option 2: Use system-installed Arrow (default for now)
-arrow_system = use_extension("//bazel:arrow_system.bzl", "arrow_system")
-use_repo(arrow_system, "arrow")
+# Option 2: Use system-installed Arrow (comment out Option 1 first)
+# arrow_system = use_extension("//bazel:arrow_system.bzl", "arrow_system")
+# use_repo(arrow_system, "arrow")
+
+# Note: cmake/ninja are called directly in the repository rule,
+# no toolchain registration needed (avoids Bazel 9 compatibility issues).

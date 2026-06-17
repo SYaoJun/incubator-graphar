@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-load("@rules_cc//cc:defs.bzl", "cc_test")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_test")
 
 # ------------------------------------------------------------------------------
 # Common test settings
@@ -24,9 +24,7 @@ TEST_COPTS = [
     "-fPIC",
 ]
 
-TEST_DEFINES = [
-    "DARROW_ORC",
-]
+TEST_DEFINES = []
 
 # Common test dependencies
 TEST_DEPS = [

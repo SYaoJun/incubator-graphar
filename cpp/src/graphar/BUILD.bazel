@@ -24,9 +24,7 @@ GAR_COPTS = [
     "-fPIC",
 ]
 
-GAR_DEFINES = [
-    "DARROW_ORC",
-]
+GAR_DEFINES = []
 
 # ------------------------------------------------------------------------------
 # graphar core library
@@ -75,6 +73,7 @@ cc_library(
         "//thirdparty:uri_parser",
         "@arrow//:arrow",
         "@arrow//:arrow_acero",
+        "@arrow//:arrow_compute",
         "@arrow//:arrow_dataset",
         "@arrow//:parquet",
     ],

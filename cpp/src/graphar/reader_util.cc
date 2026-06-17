@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include "arrow/util/config.h"
 #ifdef ARROW_ORC
 #include "arrow/adapters/orc/adapter.h"
 #endif

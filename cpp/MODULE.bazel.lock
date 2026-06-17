@@ -197,15 +197,18 @@
   },
   "selectedYankedVersions": {},
   "moduleExtensions": {
-    "//bazel:arrow_system.bzl%arrow_system": {
+    "//bazel:arrow_extension.bzl%arrow_build": {
       "general": {
-        "bzlTransitiveDigest": "f+uIWupfK9uoU9FVpEU/pugOufxjA+eNDma2XI72SOI=",
-        "usagesDigest": "UZRTvHKP+NyZrsmKtZ6lIiTVWArsQ6UuvkJVFl/0mYo=",
+        "bzlTransitiveDigest": "GgFk61PH9U7tLxWvdgNtrtP+gBBQ5++6WuobpCJTk/0=",
+        "usagesDigest": "bxhW0xWm37g/nYAQEaMKk1RgteXWZsx9ebsD7NYPLwI=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
           "arrow": {
-            "repoRuleId": "@@//bazel:arrow_system.bzl%_arrow_repo",
-            "attributes": {}
+            "repoRuleId": "@@//bazel:arrow_extension.bzl%_arrow_build_repo",
+            "attributes": {
+              "version": "24.0.0",
+              "jobs": 12
+            }
           }
         }
       }

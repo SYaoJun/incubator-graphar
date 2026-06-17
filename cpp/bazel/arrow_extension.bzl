@@ -16,172 +16,210 @@
 # under the License.
 
 """
-Arrow module extension for building Apache Arrow C++ from source using rules_foreign_cc.
+Arrow build-from-source module extension.
 
-This extension downloads the Arrow source release and builds it via CMake,
-producing cc_library targets that other rules can depend on.
-
-Usage in MODULE.bazel:
-    arrow_build = use_extension("//bazel:arrow_extension.bzl", "arrow_build")
-    use_repo(arrow_build, "arrow")
-
-Then depend on:
-    @arrow//:arrow
-    @arrow//:arrow_acero
-    @arrow//:arrow_dataset
-    @arrow//:parquet
-
-Arrow version can be configured below. Note that Arrow >= 24.0.0 requires C++20.
+Builds Apache Arrow C++ via cmake + ninja in a repository rule
+during the loading phase. Does NOT require rules_foreign_cc cmake() rule,
+avoiding Bazel 9 toolchain incompatibility.
 """
 
-load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake")
-
 # Arrow version to build.
-# - 18.1.0: C++17, stable
-# - 22.0.0: C++17, newer features
-# - 24.0.0: C++20 required
-ARROW_VERSION = "18.1.0"
+ARROW_VERSION = "24.0.0"
 
-def _arrow_build_impl(module_ctx):
-    """Module extension to build Apache Arrow C++ from source."""
+_ARROW_LIBS = [
+    "arrow",
+    "arrow_acero",
+    "arrow_compute",
+    "arrow_dataset",
+    "parquet",
+]
 
-    # Download Arrow source
-    module_ctx.download_and_extract(
-        url = "https://dlcdn.apache.org/arrow/arrow-{}/apache-arrow-{}.tar.gz".format(
-            ARROW_VERSION,
-            ARROW_VERSION,
+def _get_lib_ext(repo_ctx):
+    """Return the shared library extension for the current OS."""
+    os_name = repo_ctx.os.name.lower()
+    if "mac" in os_name:
+        return ".dylib"
+    return ".so"
+
+def _arrow_build_repo_impl(repo_ctx):
+    """Repository rule: download and build Arrow from source."""
+    version = repo_ctx.attr.version
+    lib_ext = _get_lib_ext(repo_ctx)
+
+    # Download and extract Arrow source
+    repo_ctx.report_progress("Downloading Arrow %s source..." % version)
+    repo_ctx.download_and_extract(
+        url = "https://archive.apache.org/dist/arrow/arrow-{ver}/apache-arrow-{ver}.tar.gz".format(
+            ver = version,
         ),
         output = "arrow_src",
-        stripPrefix = "apache-arrow-{}".format(ARROW_VERSION),
+        stripPrefix = "apache-arrow-{}".format(version),
     )
 
-    # Write a BUILD file for the Arrow source directory
-    module_ctx.file(
-        "arrow_src/BUILD.bazel",
-        content = """\
-load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake")
+    # Build Arrow with cmake + ninja
+    repo_ctx.report_progress("Configuring Arrow with cmake...")
+    build_dir = "build"
 
-filegroup(
-    name = "all_srcs",
-    srcs = glob(
-        ["**"],
-        exclude = ["BUILD.bazel"],
-    ),
-)
+    cmake_args = [
+        "cmake",
+        "-GNinja",
+        "-S", "cpp",
+        "-B", build_dir,
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DARROW_BUILD_SHARED=ON",
+        "-DARROW_BUILD_STATIC=OFF",
+        "-DARROW_DEPENDENCY_SOURCE=BUNDLED",
+        "-DARROW_COMPUTE=ON",
+        "-DARROW_CSV=ON",
+        "-DARROW_DATASET=ON",
+        "-DARROW_FILESYSTEM=ON",
+        "-DARROW_JSON=ON",
+        "-DARROW_PARQUET=ON",
+        "-DARROW_ACERO=ON",
+        "-DARROW_ORC=ON",
+        "-DARROW_WITH_BROTLI=ON",
+        "-DARROW_WITH_BZ2=ON",
+        "-DARROW_WITH_LZ4=ON",
+        "-DARROW_WITH_SNAPPY=ON",
+        "-DARROW_WITH_ZLIB=ON",
+        "-DARROW_WITH_ZSTD=ON",
+        "-DARROW_BUILD_TESTS=OFF",
+        "-DARROW_BUILD_BENCHMARKS=OFF",
+        "-DARROW_BUILD_EXAMPLES=OFF",
+        "-DARROW_BUILD_INTEGRATION=OFF",
+        "-DARROW_FLIGHT=OFF",
+        "-DARROW_GANDIVA=OFF",
+        "-DARROW_JEMALLOC=OFF",
+        "-DARROW_MIMALLOC=OFF",
+        "-DARROW_S3=OFF",
+        "-DARROW_SUBSTRAIT=OFF",
+        "-DARROW_USE_CCACHE=OFF",
+        "-DCMAKE_CXX_STANDARD=20",
+    ]
 
-# Common CMake cache entries for all Arrow builds
-_ARROW_COMMON_CACHE = {{
-    "ARROW_BUILD_SHARED": "ON",
-    "ARROW_BUILD_STATIC": "OFF",
-    "ARROW_DEPENDENCY_SOURCE": "BUNDLED",
-    # Components needed by GraphAr
-    "ARROW_COMPUTE": "ON",
-    "ARROW_CSV": "ON",
-    "ARROW_DATASET": "ON",
-    "ARROW_FILESYSTEM": "ON",
-    "ARROW_JSON": "ON",
-    "ARROW_PARQUET": "ON",
-    "ARROW_ACERO": "ON",
-    "ARROW_ORC": "ON",
-    # Compression libraries
-    "ARROW_WITH_BROTLI": "ON",
-    "ARROW_WITH_BZ2": "ON",
-    "ARROW_WITH_LZ4": "ON",
-    "ARROW_WITH_SNAPPY": "ON",
-    "ARROW_WITH_ZLIB": "ON",
-    "ARROW_WITH_ZSTD": "ON",
-    # Disable unnecessary components
-    "ARROW_BUILD_TESTS": "OFF",
-    "ARROW_BUILD_BENCHMARKS": "OFF",
-    "ARROW_BUILD_EXAMPLES": "OFF",
-    "ARROW_BUILD_INTEGRATION": "OFF",
-    "ARROW_FLIGHT": "OFF",
-    "ARROW_GANDIVA": "OFF",
-    "ARROW_JEMALLOC": "OFF",
-    "ARROW_MIMALLOC": "OFF",
-    "ARROW_S3": "OFF",
-    "ARROW_SUBSTRAIT": "OFF",
-    "ARROW_USE_CCACHE": "OFF",
-    # C++ standard
-    "CMAKE_CXX_STANDARD": "17",
-}}
+    result = repo_ctx.execute(
+        cmake_args,
+        working_directory = "arrow_src",
+        quiet = False,
+        timeout = 900,
+    )
+    if result.return_code != 0:
+        fail("cmake configure failed:\n%s\n%s" % (result.stdout, result.stderr))
 
-cmake(
-    name = "arrow_build",
-    cache_entries = dict(_ARROW_COMMON_CACHE),
-    env = {{
-        "CMAKE_BUILD_PARALLEL_LEVEL": "4",
-    }},
-    generate_args = ["-GNinja"],
-    lib_source = ":all_srcs",
-    out_lib_dir = "lib",
-    out_shared_libs = [
-        "libarrow.so",
-        "libarrow_acero.so",
-        "libarrow_dataset.so",
-        "libparquet.so",
-    ],
-    visibility = ["//visibility:public"],
-)
+    # Build (with parallel jobs)
+    repo_ctx.report_progress("Building Arrow with ninja...")
+    result = repo_ctx.execute(
+        ["ninja", "-C", "build", "-j", str(repo_ctx.attr.jobs)],
+        working_directory = "arrow_src",
+        quiet = False,
+        timeout = 7200,
+    )
+    if result.return_code != 0:
+        fail("ninja build failed:\n%s\n%s" % (result.stdout, result.stderr))
 
-# Header-only target for Arrow include paths
-cc_library(
-    name = "arrow_headers",
-    hdrs = glob(
-        ["**/*.h"],
-        allow_empty = True,
-    ),
-    includes = [
-        "cpp/src",
-    ],
-    visibility = ["//visibility:public"],
-)
+    # Symlink libraries from build dir to repo root for easy access
+    # Arrow cmake puts shared libs in build/release/ (for Release builds)
+    for lib in _ARROW_LIBS:
+        src = "arrow_src/build/release/lib{}{}".format(lib, lib_ext)
+        dst = "lib{}{}".format(lib, lib_ext)
+        repo_ctx.symlink(src, dst)
 
-# Individual library targets
+    # Symlink source headers
+    repo_ctx.symlink("arrow_src/cpp/src/arrow", "include_src/arrow")
+    repo_ctx.symlink("arrow_src/cpp/src/parquet", "include_src/parquet")
+
+    # Symlink generated headers (version.h, config.h, etc.)
+    repo_ctx.symlink("arrow_src/build/src/arrow", "include_gen/arrow")
+    repo_ctx.symlink("arrow_src/build/src/parquet", "include_gen/parquet")
+
+    # Write BUILD file
+    build_content = """# Apache Arrow C++ - Built from source
+load("@rules_cc//cc:defs.bzl", "cc_import", "cc_library")
+
+"""
+
+    for lib in _ARROW_LIBS:
+        build_content += """
 cc_import(
-    name = "libarrow",
-    shared_library = ":arrow_build",
+    name = "{lib}_shared",
+    shared_library = ":lib{lib}{ext}",
     visibility = ["//visibility:private"],
 )
+""".format(lib = lib, ext = lib_ext)
 
+    build_content += """
 cc_library(
     name = "arrow",
-    hdrs = glob(["cpp/src/arrow/**/*.h"], allow_empty = True),
-    includes = ["cpp/src"],
+    hdrs = glob([
+        "include_src/arrow/**/*.h",
+        "include_gen/arrow/**/*.h",
+    ]),
+    includes = ["include_src", "include_gen"],
     visibility = ["//visibility:public"],
-    deps = [":libarrow"],
+    deps = [":arrow_shared"],
 )
 
 cc_library(
     name = "arrow_acero",
-    hdrs = glob(["cpp/src/arrow/**/*.h"], allow_empty = True),
-    includes = ["cpp/src"],
+    hdrs = glob([
+        "include_src/arrow/**/*.h",
+        "include_gen/arrow/**/*.h",
+    ]),
+    includes = ["include_src", "include_gen"],
     visibility = ["//visibility:public"],
-    deps = [":libarrow"],
+    deps = [":arrow", ":arrow_acero_shared"],
+)
+
+cc_library(
+    name = "arrow_compute",
+    hdrs = glob([
+        "include_src/arrow/**/*.h",
+        "include_gen/arrow/**/*.h",
+    ]),
+    includes = ["include_src", "include_gen"],
+    visibility = ["//visibility:public"],
+    deps = [":arrow", ":arrow_compute_shared"],
 )
 
 cc_library(
     name = "arrow_dataset",
-    hdrs = glob(["cpp/src/arrow/**/*.h"], allow_empty = True),
-    includes = ["cpp/src"],
+    hdrs = glob([
+        "include_src/arrow/**/*.h",
+        "include_gen/arrow/**/*.h",
+    ]),
+    includes = ["include_src", "include_gen"],
     visibility = ["//visibility:public"],
-    deps = [":libarrow"],
+    deps = [":arrow", ":arrow_dataset_shared"],
 )
 
 cc_library(
     name = "parquet",
-    hdrs = glob(["cpp/src/parquet/**/*.h"], allow_empty = True),
-    includes = ["cpp/src"],
+    hdrs = glob([
+        "include_src/parquet/**/*.h",
+        "include_gen/parquet/**/*.h",
+    ]),
+    includes = ["include_src", "include_gen"],
     visibility = ["//visibility:public"],
-    deps = [":libarrow"],
+    deps = [":arrow", ":parquet_shared"],
 )
-""",
-    )
+"""
 
-    # Create root BUILD for the arrow repo
-    module_ctx.file(
-        "BUILD.bazel",
-        content = "# Arrow external repository root\n",
+    repo_ctx.file("BUILD.bazel", build_content)
+
+_arrow_build_repo = repository_rule(
+    implementation = _arrow_build_repo_impl,
+    attrs = {
+        "version": attr.string(mandatory = True),
+        "jobs": attr.int(default = 4),
+    },
+)
+
+def _arrow_build_impl(module_ctx):
+    """Module extension: creates the Arrow-from-source repository."""
+    _arrow_build_repo(
+        name = "arrow",
+        version = ARROW_VERSION,
+        jobs = 12,  # Use more jobs for faster build
     )
 
 arrow_build = module_extension(
