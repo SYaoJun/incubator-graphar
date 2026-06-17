@@ -199,7 +199,7 @@
   "moduleExtensions": {
     "//bazel:arrow_extension.bzl%arrow_build": {
       "general": {
-        "bzlTransitiveDigest": "GgFk61PH9U7tLxWvdgNtrtP+gBBQ5++6WuobpCJTk/0=",
+        "bzlTransitiveDigest": "50+o3im0KGjX162cF/eizTkyZhtDcmNBuMfE8DNR6CY=",
         "usagesDigest": "bxhW0xWm37g/nYAQEaMKk1RgteXWZsx9ebsD7NYPLwI=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
