@@ -1,0 +1,56 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# Root BUILD file for GraphAr C++ Bazel build.
+
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+# ------------------------------------------------------------------------------
+# Top-level aliases for convenience
+# ------------------------------------------------------------------------------
+
+# Alias to the main graphar library
+alias(
+    name = "graphar",
+    actual = "//src/graphar",
+    visibility = ["//visibility:public"],
+)
+
+# ------------------------------------------------------------------------------
+# Documentation generation (optional)
+# ------------------------------------------------------------------------------
+# To generate docs, install doxygen and run:
+#   doxygen Doxyfile
+# This is not integrated into the Bazel build since Doxygen is not
+# available on BCR.
+
+# ------------------------------------------------------------------------------
+# Code formatting (clang-format)
+# ------------------------------------------------------------------------------
+# To format code, install clang-format and run:
+#   clang-format --style=file -i src/graphar/*.h src/graphar/*.cc \
+#       test/*.h test/*.cc examples/*.h examples/*.cc \
+#       benchmarks/*.h benchmarks/*.cc
+
+# ------------------------------------------------------------------------------
+# Cpplint
+# ------------------------------------------------------------------------------
+# To run cpplint:
+#   python misc/cpplint.py --root=include \
+#       src/graphar/*.h src/graphar/*.cc \
+#       test/*.h test/*.cc examples/*.h examples/*.cc \
+#       benchmarks/*.h benchmarks/*.cc

@@ -1,0 +1,81 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+# ------------------------------------------------------------------------------
+# Compiler flags shared across all graphar targets
+# ------------------------------------------------------------------------------
+GAR_COPTS = [
+    "-fPIC",
+]
+
+GAR_DEFINES = [
+    "DARROW_ORC",
+]
+
+# ------------------------------------------------------------------------------
+# graphar core library
+#
+# This is the main GraphAr C++ library, built as a shared library by default.
+# It includes all source files under src/graphar/ and depends on:
+#   - Arrow C++ (arrow, arrow_acero, arrow_dataset, parquet)
+#   - mini-yaml (thirdparty)
+#   - result (thirdparty)
+#   - uri-parser (thirdparty)
+# ------------------------------------------------------------------------------
+
+# All header files (for install/distribution)
+filegroup(
+    name = "public_headers",
+    srcs = glob([
+        "*.h",
+        "api/*.h",
+        "arrow/*.h",
+        "high-level/*.h",
+    ]),
+    visibility = ["//visibility:public"],
+)
+
+# All source files
+filegroup(
+    name = "all_srcs",
+    srcs = glob([
+        "*.cc",
+        "arrow/*.cc",
+        "high-level/*.cc",
+    ]),
+)
+
+cc_library(
+    name = "graphar",
+    srcs = [":all_srcs"],
+    hdrs = [":public_headers"],
+    copts = GAR_COPTS,
+    defines = GAR_DEFINES,
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//thirdparty:mini_yaml",
+        "//thirdparty:result",
+        "//thirdparty:uri_parser",
+        "@arrow//:arrow",
+        "@arrow//:arrow_acero",
+        "@arrow//:arrow_dataset",
+        "@arrow//:parquet",
+    ],
+)

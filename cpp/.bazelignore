@@ -1,0 +1,5 @@
+# Ignore build artifacts and non-Bazel directories
+build
+cmake-build-*
+.clwb
+.idea

@@ -1,0 +1,280 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
+
+# ------------------------------------------------------------------------------
+# Common settings for examples
+# ------------------------------------------------------------------------------
+EXAMPLE_COPTS = [
+    "-fPIC",
+]
+
+EXAMPLE_DEFINES = [
+    "DARROW_ORC",
+]
+
+# ------------------------------------------------------------------------------
+# Example configuration header
+# ------------------------------------------------------------------------------
+cc_library(
+    name = "example_config",
+    hdrs = ["config.h"],
+    copts = EXAMPLE_COPTS,
+    defines = EXAMPLE_DEFINES,
+    deps = [
+        "//src/graphar",
+    ],
+)
+
+# ------------------------------------------------------------------------------
+# Boost is required for graph algorithm examples (BFS, PageRank, CC, etc.).
+#
+# Boost is NOT available on BCR. You have two options:
+#
+# Option 1: Install Boost system-wide and use --define=BOOST_ROOT=/path/to/boost
+#           with the boost_dep select() below.
+#
+# Option 2: Uncomment and use rules_foreign_cc to build Boost from source
+#           (add boost to MODULE.bazel arrow_extension or a separate extension).
+#
+# For now, examples that don't require Boost can be built directly.
+# Graph algorithm examples are disabled by default.
+# ------------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------------
+# Examples that do NOT require Boost
+# ------------------------------------------------------------------------------
+
+cc_binary(
+    name = "construct_info_example",
+    srcs = ["construct_info_example.cc"],
+    copts = EXAMPLE_COPTS,
+    defines = EXAMPLE_DEFINES,
+    deps = [
+        ":example_config",
+        "//src/graphar",
+    ],
+)
+
+cc_binary(
+    name = "low_level_reader_example",
+    srcs = ["low_level_reader_example.cc"],
+    copts = EXAMPLE_COPTS,
+    defines = EXAMPLE_DEFINES,
+    deps = [
+        ":example_config",
+        "//src/graphar",
+    ],
+)
+
+cc_binary(
+    name = "mid_level_reader_example",
+    srcs = ["mid_level_reader_example.cc"],
+    copts = EXAMPLE_COPTS,
+    defines = EXAMPLE_DEFINES,
+    deps = [
+        ":example_config",
+        "//src/graphar",
+    ],
+)
+
+cc_binary(
+    name = "mid_level_writer_example",
+    srcs = ["mid_level_writer_example.cc"],
+    copts = EXAMPLE_COPTS,
+    defines = EXAMPLE_DEFINES,
+    deps = [
+        ":example_config",
+        "//src/graphar",
+    ],
+)
+
+cc_binary(
+    name = "high_level_reader_example",
+    srcs = ["high_level_reader_example.cc"],
+    copts = EXAMPLE_COPTS,
+    defines = EXAMPLE_DEFINES,
+    deps = [
+        ":example_config",
+        "//src/graphar",
+    ],
+)
+
+cc_binary(
+    name = "high_level_writer_example",
+    srcs = ["high_level_writer_example.cc"],
+    copts = EXAMPLE_COPTS,
+    defines = EXAMPLE_DEFINES,
+    deps = [
+        ":example_config",
+        "//src/graphar",
+    ],
+)
+
+cc_binary(
+    name = "filtering_example",
+    srcs = ["filtering_example.cc"],
+    copts = EXAMPLE_COPTS,
+    defines = EXAMPLE_DEFINES,
+    deps = [
+        ":example_config",
+        "//src/graphar",
+    ],
+)
+
+cc_binary(
+    name = "snap_dataset_to_graphar",
+    srcs = ["snap_dataset_to_graphar.cc"],
+    copts = EXAMPLE_COPTS,
+    defines = EXAMPLE_DEFINES,
+    deps = [
+        ":example_config",
+        "//src/graphar",
+    ],
+)
+
+# ------------------------------------------------------------------------------
+# Graph algorithm examples (REQUIRE Boost Graph Library)
+#
+# To build these, you need Boost installed on your system.
+# Add the following to your .bazelrc or use --copt and --linkopt:
+#
+#   build:boost --copt=-isystem/usr/include
+#   build:boost --linkopt=-L/usr/lib/x86_64-linux-gnu
+#   build:boost --linkopt=-lboost_graph
+#
+# Then build with: bazel build --config=boost //examples:bfs_father_example
+#
+# Or better: add a boost_extension to MODULE.bazel that downloads and
+# builds Boost using rules_foreign_cc.
+# ------------------------------------------------------------------------------
+
+# Uncomment the following blocks when Boost is configured:
+
+# cc_binary(
+#     name = "bfs_father_example",
+#     srcs = ["bfs_father_example.cc"],
+#     copts = EXAMPLE_COPTS,
+#     defines = EXAMPLE_DEFINES,
+#     deps = [
+#         ":example_config",
+#         "//src/graphar",
+#         "@boost//:graph",
+#     ],
+# )
+#
+# cc_binary(
+#     name = "bfs_pull_example",
+#     srcs = ["bfs_pull_example.cc"],
+#     copts = EXAMPLE_COPTS,
+#     defines = EXAMPLE_DEFINES,
+#     deps = [
+#         ":example_config",
+#         "//src/graphar",
+#         "@boost//:graph",
+#     ],
+# )
+#
+# cc_binary(
+#     name = "bfs_push_example",
+#     srcs = ["bfs_push_example.cc"],
+#     copts = EXAMPLE_COPTS,
+#     defines = EXAMPLE_DEFINES,
+#     deps = [
+#         ":example_config",
+#         "//src/graphar",
+#         "@boost//:graph",
+#     ],
+# )
+#
+# cc_binary(
+#     name = "bfs_stream_example",
+#     srcs = ["bfs_stream_example.cc"],
+#     copts = EXAMPLE_COPTS,
+#     defines = EXAMPLE_DEFINES,
+#     deps = [
+#         ":example_config",
+#         "//src/graphar",
+#         "@boost//:graph",
+#     ],
+# )
+#
+# cc_binary(
+#     name = "bgl_example",
+#     srcs = ["bgl_example.cc"],
+#     copts = EXAMPLE_COPTS,
+#     defines = EXAMPLE_DEFINES,
+#     deps = [
+#         ":example_config",
+#         "//src/graphar",
+#         "@boost//:graph",
+#     ],
+# )
+#
+# cc_binary(
+#     name = "cc_push_example",
+#     srcs = ["cc_push_example.cc"],
+#     copts = EXAMPLE_COPTS,
+#     defines = EXAMPLE_DEFINES,
+#     deps = [
+#         ":example_config",
+#         "//src/graphar",
+#         "@boost//:graph",
+#     ],
+# )
+#
+# cc_binary(
+#     name = "cc_stream_example",
+#     srcs = ["cc_stream_example.cc"],
+#     copts = EXAMPLE_COPTS,
+#     defines = EXAMPLE_DEFINES,
+#     deps = [
+#         ":example_config",
+#         "//src/graphar",
+#         "@boost//:graph",
+#     ],
+# )
+#
+# cc_binary(
+#     name = "pagerank_example",
+#     srcs = ["pagerank_example.cc"],
+#     copts = EXAMPLE_COPTS,
+#     defines = EXAMPLE_DEFINES,
+#     deps = [
+#         ":example_config",
+#         "//src/graphar",
+#         "@boost//:graph",
+#     ],
+# )
+
+# ------------------------------------------------------------------------------
+# Convenience alias for building all non-Boost examples
+# ------------------------------------------------------------------------------
+filegroup(
+    name = "all_examples",
+    srcs = [
+        ":construct_info_example",
+        ":low_level_reader_example",
+        ":mid_level_reader_example",
+        ":mid_level_writer_example",
+        ":high_level_reader_example",
+        ":high_level_writer_example",
+        ":filtering_example",
+        ":snap_dataset_to_graphar",
+    ],
+)
