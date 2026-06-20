@@ -50,26 +50,12 @@ single_version_override(
 # ------------------------------------------------------------------------------
 # Arrow dependency
 #
-# TWO OPTIONS (choose one):
+# Two strategies, controlled by the GAR_ARROW_SOURCE environment variable:
 #
-# Option 1 (default): Build Arrow from source via rules_foreign_cc
-#   - Uncomment the lines below.
-#   - Requires: cmake, ninja, and all Arrow build dependencies.
-#   - This is the slowest option but most portable.
+#   GAR_ARROW_SOURCE=1  bazel build //src/graphar   → build Arrow from source
+#   bazel build //src/graphar                        → use system Arrow (default)
 #
-# Option 2: Use system-installed Arrow
-#   - Install Arrow C++ development packages on your system.
-#   - Use the arrow_system repository rule from bazel/arrow_system.bzl
-#   - See bazel/README.md for details.
+# Requires: cmake and ninja (only for source build).
 # ------------------------------------------------------------------------------
-
-# Option 1: Build Arrow from source
-arrow_build = use_extension("//bazel:arrow_extension.bzl", "arrow_build")
-use_repo(arrow_build, "arrow")
-
-# Option 2: Use system-installed Arrow (comment out Option 1 first)
-# arrow_system = use_extension("//bazel:arrow_system.bzl", "arrow_system")
-# use_repo(arrow_system, "arrow")
-
-# Note: cmake/ninja are called directly in the repository rule,
-# no toolchain registration needed (avoids Bazel 9 compatibility issues).
+arrow_ext = use_extension("//bazel:arrow_extension.bzl", "arrow")
+use_repo(arrow_ext, "arrow")

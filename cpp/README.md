@@ -2,177 +2,168 @@
 
 This directory contains the code and build system for the GraphAr C++ library.
 
+## Requirements
 
-## Building GraphAr C++
+- **Bazel 9.1** — the build system. Install via [Bazelisk](https://github.com/bazelbuild/bazelisk) for automatic version management.
+- **C++20** compiler — required by Apache Arrow >= 24.0.0.
+- **CMake 3.16+** and **Ninja** — used internally to build Apache Arrow from source.
 
-### System setup
-
-GraphAr C++ uses CMake as a build configuration system. We recommend building
-out-of-source. If you are not familiar with this terminology:
-
-- **In-source build**: ``cmake`` is invoked directly from the ``cpp``
-  directory. This can be inflexible when you wish to maintain multiple build
-  environments (e.g. one for debug builds and another for release builds)
-- **Out-of-source build**: ``cmake`` is invoked from another directory,
-  creating an isolated build environment that does not interact with any other
-  build environment. For example, you could create ``cpp/build-debug`` and
-  invoke ``cmake $CMAKE_ARGS ..`` from this directory
-
-Building requires:
-
-- A C++17-enabled compiler. On Linux, gcc 7.1 and higher should be
-  sufficient. For MacOS, at least clang 5 is required
-- CMake 3.5 or higher
-- On Linux and macOS, ``make`` build utilities
-- Apache Arrow C++ (>= 12.0.0, requires `arrow-dev`, `arrow-dataset`, `arrow-acero` and `parquet` modules) for Arrow filesystem support. You can refer to [Apache Arrow Installation](https://arrow.apache.org/install/) to install the required modules.
-
-Dependencies for optional features:
-
-- [Doxygen](https://www.doxygen.nl/index.html) (>= 1.8) for generating documentation
-- `clang-format-8` for code formatting
-- [BGL](https://www.boost.org/doc/libs/1_80_0/libs/graph/doc/index.html) (>= 1.58)
-- [Google Benchmark](https://github.com/google/benchmark) (>= 1.6.0) for benchmarking
-- [Catch2](https://github.com/catchorg/Catch2) v3 for unit testing
-- [Ninja](https://github.com/ninja-build/ninja) required for CMake presets
-
-On Ubuntu/Debian, you can install the required packages with:
+On macOS, install prerequisites with [Homebrew](https://brew.sh):
 
 ```bash
-sudo apt-get install \
-    build-essential \
-    cmake \
-    libboost-graph-dev \
-    doxygen\
-    ninja-build
-
-# Arrow C++ dependencies
-wget -c \
-    https://apache.jfrog.io/artifactory/arrow/"$(lsb_release --id --short | tr 'A-Z' 'a-z')"/apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb \
-    -P /tmp/
-sudo apt-get install -y /tmp/apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb
-sudo apt-get update
-sudo apt-get install -y libarrow-dev libarrow-dataset-dev libarrow-acero-dev libparquet-dev
+brew install bazelisk cmake ninja
 ```
 
-On macOS, you can use [Homebrew](https://brew.sh) to install the required packages:
+On Ubuntu/Debian:
 
 ```bash
-# Minimal install for building with CMake presets:
-brew install ninja cmake
-
-# Or install all development dependencies:
-brew update && brew bundle --file=cpp/Brewfile
+sudo apt-get install -y build-essential cmake ninja-build
+# Install Bazelisk:
+# https://github.com/bazelbuild/bazelisk/releases
 ```
 
 > [!NOTE]
-> Currently, the Arrow C++ library has [disabled ARROW_ORC](https://github.com/Homebrew/homebrew-core/blob/4588359b7248b07379094de5310ee7ff89afa17e/Formula/a/apache-arrow.rb#L53) in the brew formula, so you need to build and install the Arrow C++ library manually (with `-DARROW_ORC=True`).
+> Apache Arrow C++ does **not** need to be pre-installed. The build system
+> downloads and compiles Arrow 24.0.0 from source automatically on the first
+> `bazel build`.
 
-### Building
-
-All the instructions below assume that you have cloned the GraphAr git
-repository and navigated to the ``cpp`` subdirectory with:
+## Quick Start
 
 ```bash
 git clone https://github.com/apache/incubator-graphar.git
 cd incubator-graphar/cpp
+
+# Build the library (first build downloads + compiles Arrow, ~20-30 min)
+bazel build //src/graphar
 ```
 
-Release build:
+## Build the Library
 
 ```bash
-mkdir build-release
-cd build-release
-cmake ..
-make -j8       # if you have 8 CPU cores, otherwise adjust, use -j`nproc` for all cores
+# Debug build with AddressSanitizer
+bazel build --config=debug //src/graphar
+
+# Optimized release build (default)
+bazel build //src/graphar
+
+# Build a specific target
+bazel build //src/graphar           # Core library
+bazel build //examples:...          # All examples
+bazel build //benchmarks:...        # All benchmarks
 ```
 
-Debug build with unit tests:
+## Run Tests
 
 ```bash
-mkdir build-debug
-cd build-debug
-cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON ..
-make -j8       # if you have 8 CPU cores, otherwise adjust, use -j`nproc` for all cores
+# Initialize test data submodule
+git submodule update --init --recursive
+
+# Run all tests
+bazel test //test:all_tests --test_env=GAR_TEST_DATA=$(pwd)/../testing
+
+# Run a single test
+bazel test //test:test_info --test_env=GAR_TEST_DATA=$(pwd)/../testing
+
+# Debug build with sanitizer
+bazel test --config=debug //test:all_tests --test_env=GAR_TEST_DATA=$(pwd)/../testing
 ```
 
-### Quick Build with CMake Presets
-
-We use CMake Presets for quick building. Available presets:
-
-- `debug` - Debug build with tests, examples, and benchmarks
-- `release` - Release build with tests, examples, and benchmarks
+## Run Examples
 
 ```bash
-# Configure the project
-cmake --preset debug    # or: cmake --preset release
+bazel build //examples:all_examples
 
-# Build the project
-cmake --build --preset debug    # or: cmake --build --preset release
+# Run an example
+bazel run //examples:construct_info_example
+# … or execute directly:
+./bazel-bin/examples/construct_info_example
 ```
 
-After building, you can run the unit tests with:
+> Boost-dependent examples (BFS, PageRank, etc.) require a local Boost
+> installation. See `examples/BUILD.bazel` for details.
+
+## Run Benchmarks
 
 ```bash
-git submodule update --init --recursive  # download the testing data
-GAR_TEST_DATA=${PWD}/testing ctest
+bazel build //benchmarks:all_benchmarks
+bazel run //benchmarks:arrow_chunk_reader_benchmark
 ```
 
-Build with examples, you should build the project with `BUILD_EXAMPLES` option(examples are built by default with presets), then run:
+## Build Configurations
+
+| Name     | Command                       | Effect                                      |
+|----------|-------------------------------|---------------------------------------------|
+| release  | `bazel build …` (default)     | `-O3`, debug symbols                        |
+| debug    | `bazel build --config=debug`  | `-O0`, AddressSanitizer, frame pointer      |
+| coverage | `bazel build --config=coverage` | prof-guided coverage instrumentation     |
+
+## Arrow Dependency
+
+The build system supports two strategies, controlled by the `GAR_ARROW_SOURCE`
+environment variable. No editing of `MODULE.bazel` is needed.
+
+### Default — Use system-installed Arrow
 
 ```bash
-GAR_TEST_DATA=${PWD}/testing ./bgl_example  # run the BGL example
+# Requires Arrow C++ (>= 24.0.0) to be installed on your system
+bazel build //src/graphar
 ```
 
-Build with benchmarks, you should build the project with `BUILD_BENCHMARKS` option(benchmarks are built by default with presets), then run:
+On macOS: `brew install apache-arrow`  
+On Ubuntu: `sudo apt-get install libarrow-dev libarrow-dataset-dev libarrow-acero-dev libparquet-dev`
+
+### Build Arrow from source
 
 ```bash
-GAR_TEST_DATA=${PWD}/testing ./graph_info_benchmark  # run the graph info benchmark
+# Downloads and compiles Arrow 24.0.0 automatically (~20-30 min first time)
+GAR_ARROW_SOURCE=1 bazel build //src/graphar
 ```
 
-Extra Build Options:
+This requires `cmake` and `ninja` (used internally by the repository rule).  
+The Arrow version is controlled by `ARROW_VERSION` in `bazel/arrow_extension.bzl`.
 
-1. `-DGRAPHAR_BUILD_STATIC=ON`: Build GraphAr as static libraries.
-2. `-DUSE_STATIC_ARROW=ON`: Link arrow static library to build GraphAr. If set this option, the option `GRAPHAR_BUILD_STATIC=ON` will be set.
-3. `-DGRAPHAR_ENABLE_SANITIZER=ON|OFF`: Enable AddressSanitizer for Debug builds only (default: `ON`).
+## Generate API Documentation
 
-### Building with Arrow from source
-In case you want to build GraphAr as single static library including all dependencies, we include a [apache-arrow.cmake](cmake/apache-arrow.cmake) file that allows you to build Arrow and its dependencies from source and link it statically. To do this, you can follow the steps below:
+Install [Doxygen](https://www.doxygen.nl/) (>= 1.8), then:
 
 ```bash
-mkdir build-static
-cd build-static
-cmake -DGRAPHAR_BUILD_STATIC=ON -DBUILD_ARROW_FROM_SOURCE=ON ..
-make -j8    # if you have 8 CPU cores, otherwise adjust, use -j`nproc` for all cores
+doxygen Doxyfile
 ```
 
-### Install
+Output goes to `docs_doxygen/`.
 
-After the building, you can install the GraphAr C++ library with:
+## Code Formatting & Linting
 
 ```bash
-sudo make install       # run in directory you build, like build-release, build and so on
+# clang-format
+clang-format --style=file -i src/graphar/*.h src/graphar/*.cc \
+    test/*.h test/*.cc examples/*.h examples/*.cc \
+    benchmarks/*.h benchmarks/*.cc
+
+# cpplint
+python misc/cpplint.py --root=include \
+    src/graphar/*.h src/graphar/*.cc \
+    test/*.h test/*.cc examples/*.h examples/*.cc \
+    benchmarks/*.h benchmarks/*.cc
 ```
 
-### Generate API document
+## Project Structure
 
-You should build the project with `ENABLE_DOCS` option. Then run:
-
-```bash
-make docs
 ```
-
-The API document is generated in the directory ``docs_doxygen``.
-
-### Code formatting and linting
-
-To format and lint the code, run:
-
-```bash
-cmake ..
-make graphar-clformat # format the code
-make graphar-cpplint   # lint the code
+cpp/
+├── MODULE.bazel          # Bzlmod dependencies
+├── BUILD.bazel           # Root aliases
+├── .bazelversion         # Required Bazel version (9.1.0)
+├── .bazelrc              # Build settings & configurations
+├── bazel/                # Custom Bazel extensions
+│   └── arrow_extension.bzl   # Arrow dependency (source / system)
+├── src/graphar/          # Core library source
+├── test/                 # Unit tests (Catch2)
+├── examples/             # Example programs
+├── benchmarks/           # Google Benchmark targets
+└── thirdparty/           # Vendored third-party libraries
 ```
 
 ## How to use
 
-Please refer to our [GraphAr C++ API Reference](https://graphar.apache.org/docs/category/c-library).
+Please refer to the [GraphAr C++ API Reference](https://graphar.apache.org/docs/category/c-library).
