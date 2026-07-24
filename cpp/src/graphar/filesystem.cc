@@ -279,10 +279,14 @@ Status FileSystem::WriteTableToFile(
   case FileType::PARQUET: {
     auto schema = table->schema();
     auto row_group_size = options->getParquetMaxRowGroupLength();
+    // Use schema-aware properties when bloom filter is enabled,
+    // so per-column bloom filters can be applied.
+    auto writer_props = options->IsBloomFilterEnabled()
+                            ? options->getParquetWriterProperties(schema)
+                            : options->getParquetWriterProperties();
     RETURN_NOT_ARROW_OK(parquet::arrow::WriteTable(
         *table, arrow::default_memory_pool(), output_stream, row_group_size,
-        options->getParquetWriterProperties(),
-        options->getArrowWriterProperties()));
+        writer_props, options->getArrowWriterProperties()));
     break;
   }
 #ifdef ARROW_ORC

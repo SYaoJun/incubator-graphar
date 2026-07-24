@@ -18,6 +18,7 @@
  */
 
 #include <parquet/types.h>
+#include <chrono>
 #include <fstream>
 #include <iostream>
 #include <ostream>
@@ -25,6 +26,8 @@
 #include <string>
 
 #include "arrow/api.h"
+#include "arrow/compute/api.h"
+#include "arrow/dataset/api.h"
 #include "graphar/label.h"
 #include "graphar/util.h"
 #include "graphar/writer_util.h"
@@ -479,5 +482,740 @@ TEST_CASE_METHOD(GlobalFixture, "TestEdgeChunkWriter") {
     REQUIRE(orc_table->num_columns() == table->num_columns());
 #endif
   }
+}
+TEST_CASE_METHOD(GlobalFixture,
+                 "TestParquetBloomFilterComparison") {
+  std::string path = test_data_dir + "/ldbc_sample/person_0_0.csv";
+  arrow::io::IOContext io_context = arrow::io::default_io_context();
+  auto fs = arrow::fs::FileSystemFromUriOrPath(path).ValueOrDie();
+  std::shared_ptr<arrow::io::InputStream> input =
+      fs->OpenInputStream(path).ValueOrDie();
+
+  auto read_options = arrow::csv::ReadOptions::Defaults();
+  auto parse_options = arrow::csv::ParseOptions::Defaults();
+  parse_options.delimiter = '|';
+  auto convert_options = arrow::csv::ConvertOptions::Defaults();
+
+  auto maybe_reader = arrow::csv::TableReader::Make(
+      io_context, input, read_options, parse_options, convert_options);
+  REQUIRE(maybe_reader.ok());
+  std::shared_ptr<arrow::csv::TableReader> reader = *maybe_reader;
+  auto maybe_table = reader->Read();
+  REQUIRE(maybe_table.ok());
+  std::shared_ptr<arrow::Table> table = *maybe_table;
+
+  std::string vertex_meta_file =
+      test_data_dir + "/ldbc_sample/parquet/" + "person.vertex.yml";
+  auto vertex_meta = Yaml::LoadFile(vertex_meta_file).value();
+  auto vertex_info = VertexInfo::Load(vertex_meta).value();
+
+  const std::string base_dir = "/tmp/bloom_test/";
+  const std::string no_bloom_dir = base_dir + "no_bloom/";
+  const std::string bloom_dir = base_dir + "bloom/";
+  const std::string no_bloom_path =
+      no_bloom_dir + "vertex/person/firstName_lastName_gender/chunk0";
+  const std::string bloom_path =
+      bloom_dir + "vertex/person/firstName_lastName_gender/chunk0";
+
+  // ===============================================================
+  // 1. Write WITHOUT bloom filter
+  // ===============================================================
+  {
+    auto no_bloom_opts = WriterOptions::ParquetOptionBuilder()
+                             .compression(arrow::Compression::ZSTD)
+                             .build();
+    auto maybe_writer = VertexPropertyWriter::Make(
+        vertex_info, no_bloom_dir, no_bloom_opts);
+    REQUIRE(!maybe_writer.has_error());
+    auto writer = maybe_writer.value();
+    REQUIRE(writer->WriteTable(table, 0).ok());
+  }
+
+  // ===============================================================
+  // 2. Write WITH bloom filter (Arrow 25 auto-folding, GH-50008)
+  //    ndv is left as std::nullopt so Arrow auto-sizes each column's
+  //    bloom filter based on actual cardinality.
+  // ===============================================================
+  {
+    ::parquet::BloomFilterOptions bf_opts;  // ndv=nullopt, fold=true (default)
+    bf_opts.fpp = 0.01;                     // 1% false positive probability
+    auto bloom_opts =
+        WriterOptions::ParquetOptionBuilder()
+            .compression(arrow::Compression::ZSTD)
+            .enable_bloom_filter(true, bf_opts)
+            .build();
+    auto maybe_writer = VertexPropertyWriter::Make(
+        vertex_info, bloom_dir, bloom_opts);
+    REQUIRE(!maybe_writer.has_error());
+    auto writer = maybe_writer.value();
+    REQUIRE(writer->WriteTable(table, 0).ok());
+  }
+
+  // ===============================================================
+  // 3. Read back metadata and compare
+  // ===============================================================
+  int64_t no_bloom_size = 0, bloom_size = 0;
+  bool no_bloom_has_bloom = false;
+  int bloom_col_count = 0;
+  int64_t total_bloom_overhead = 0;
+
+  // Verify WITHOUT bloom filter
+  {
+    auto file_info = fs->GetFileInfo(no_bloom_path).ValueOrDie();
+    REQUIRE(file_info.type() == arrow::fs::FileType::File);
+    no_bloom_size = file_info.size();
+
+    std::unique_ptr<parquet::arrow::FileReader> parquet_reader;
+    auto st = graphar::util::OpenParquetArrowReader(
+        no_bloom_path, arrow::default_memory_pool(), &parquet_reader);
+    REQUIRE(st.ok());
+    auto parquet_metadata = parquet_reader->parquet_reader()->metadata();
+    auto row_group_meta = parquet_metadata->RowGroup(0);
+
+    for (int c = 0; c < row_group_meta->num_columns(); ++c) {
+      auto col_meta = row_group_meta->ColumnChunk(c);
+      auto bf_offset = col_meta->bloom_filter_offset();
+      if (bf_offset.has_value() && bf_offset.value() > 0) {
+        no_bloom_has_bloom = true;
+        break;
+      }
+    }
+  }
+
+  // Verify WITH bloom filter
+  {
+    auto file_info = fs->GetFileInfo(bloom_path).ValueOrDie();
+    REQUIRE(file_info.type() == arrow::fs::FileType::File);
+    bloom_size = file_info.size();
+
+    std::unique_ptr<parquet::arrow::FileReader> parquet_reader;
+    auto st = graphar::util::OpenParquetArrowReader(
+        bloom_path, arrow::default_memory_pool(), &parquet_reader);
+    REQUIRE(st.ok());
+    auto parquet_metadata = parquet_reader->parquet_reader()->metadata();
+    auto row_group_meta = parquet_metadata->RowGroup(0);
+
+    for (int c = 0; c < row_group_meta->num_columns(); ++c) {
+      auto col_meta = row_group_meta->ColumnChunk(c);
+      auto bf_offset = col_meta->bloom_filter_offset();
+      if (bf_offset.has_value() && bf_offset.value() > 0) {
+        ++bloom_col_count;
+        auto bf_length = col_meta->bloom_filter_length();
+        if (bf_length.has_value()) {
+          total_bloom_overhead += bf_length.value();
+        }
+      }
+    }
+  }
+
+  double size_increase_pct =
+      static_cast<double>(bloom_size - no_bloom_size) / no_bloom_size * 100.0;
+
+  // Output comparison results
+  std::cout << "\n==============================================="
+            << std::endl;
+  std::cout << "  BLOOM FILTER COMPARISON RESULT" << std::endl;
+  std::cout << "==============================================="
+            << std::endl;
+  std::cout << "  Row count:              " << table->num_rows()
+            << std::endl;
+  std::cout << "  Column count:           " << table->num_columns()
+            << std::endl;
+  std::cout << "  File size (no bloom):   " << no_bloom_size
+            << " bytes (" << no_bloom_size / 1024.0 << " KB)"
+            << std::endl;
+  std::cout << "  File size (with bloom): " << bloom_size
+            << " bytes (" << bloom_size / 1024.0 << " KB)"
+            << std::endl;
+  std::cout << "  Size increase:          " << size_increase_pct
+            << "%" << std::endl;
+  std::cout << "  Bloom overhead:         " << total_bloom_overhead
+            << " bytes (" << total_bloom_overhead / 1024.0 << " KB)"
+            << std::endl;
+  std::cout << "  Columns w/ bloom:       " << bloom_col_count
+            << std::endl;
+  std::cout << "  No-bloom has bloom:     "
+            << (no_bloom_has_bloom ? "YES" : "NO") << std::endl;
+  std::cout << "==============================================="
+            << std::endl;
+  std::cout << "\n  Benefit: Bloom filter enables row-group-level"
+            << " predicate pushdown.\n"
+            << "  When reading with 'WHERE id = X', the reader "
+            << "can skip entire row\n"
+            << "  groups without scanning data pages, reducing "
+            << "I/O significantly.\n"
+            << "  Arrow 25.0.0+ auto-folds ndv to actual column "
+            << "cardinality (GH-50008),\n"
+            << "  so overhead is proportional to distinct values "
+            << "rather than row count."
+            << std::endl;
+  std::cout << "==============================================="
+            << std::endl;
+
+  // ===============================================================
+  // 4. Query performance comparison using Dataset Scanner
+  //    Generate a larger synthetic table with multiple row groups
+  //    so bloom filter can demonstrate row-group skipping.
+  // ===============================================================
+  {
+    // Arrow compute functions must be initialized before using Scanner
+    REQUIRE(arrow::compute::Initialize().ok());
+
+    const int64_t num_rows = 50000;
+    const int64_t row_group_size = 5000;  // ~10 row groups
+
+    // Build synthetic table: sequential id (0..N-1) + random-ish val
+    arrow::Int64Builder id_builder;
+    arrow::DoubleBuilder val_builder;
+    for (int64_t i = 0; i < num_rows; ++i) {
+      REQUIRE(id_builder.Append(i).ok());
+      REQUIRE(val_builder.Append(static_cast<double>(i % 1000)).ok());
+    }
+    auto id_array = id_builder.Finish().ValueOrDie();
+    auto val_array = val_builder.Finish().ValueOrDie();
+    auto syn_schema = arrow::schema(
+        {arrow::field("id", arrow::int64()),
+         arrow::field("val", arrow::float64())});
+    auto big_table = arrow::Table::Make(syn_schema, {id_array, val_array});
+
+    const std::string query_no_bloom_path = base_dir + "query_no_bloom.parquet";
+    const std::string query_bloom_path = base_dir + "query_bloom.parquet";
+
+    // Write WITHOUT bloom filter
+    {
+      auto opts = WriterOptions::ParquetOptionBuilder()
+                      .max_row_group_length(row_group_size)
+                      .compression(arrow::Compression::ZSTD)
+                      .build();
+      auto out = fs->OpenOutputStream(query_no_bloom_path).ValueOrDie();
+      auto st = parquet::arrow::WriteTable(
+          *big_table, arrow::default_memory_pool(), out, row_group_size,
+          opts->getParquetWriterProperties(),
+          opts->getArrowWriterProperties());
+      REQUIRE(st.ok());
+    }
+
+    // Write WITH bloom filter on all columns (auto-folding)
+    {
+      auto opts = WriterOptions::ParquetOptionBuilder()
+                      .max_row_group_length(row_group_size)
+                      .compression(arrow::Compression::ZSTD)
+                      .enable_bloom_filter()
+                      .build();
+      auto out = fs->OpenOutputStream(query_bloom_path).ValueOrDie();
+      auto st = parquet::arrow::WriteTable(
+          *big_table, arrow::default_memory_pool(), out, row_group_size,
+          opts->getParquetWriterProperties(big_table->schema()),
+          opts->getArrowWriterProperties());
+      REQUIRE(st.ok());
+    }
+
+    // Verify row group counts are identical
+    {
+      auto meta_no_bloom = parquet::ReadMetaData(
+          fs->OpenInputFile(query_no_bloom_path).ValueOrDie());
+      auto meta_bloom = parquet::ReadMetaData(
+          fs->OpenInputFile(query_bloom_path).ValueOrDie());
+      REQUIRE(meta_no_bloom->num_row_groups() ==
+              meta_bloom->num_row_groups());
+    }
+
+    // Point query: pick an id in the middle (row group ~9 of 10)
+    const int64_t target_id = 42000;
+
+    auto format = std::make_shared<arrow::dataset::ParquetFileFormat>();
+    auto filter_expr = arrow::compute::equal(
+        arrow::compute::field_ref("id"),
+        arrow::compute::literal(arrow::Int64Scalar(target_id)));
+
+    auto timed_scan =
+        [&](const std::string& file_path)
+        -> std::pair<int64_t, int64_t> {
+      auto ds_factory =
+          arrow::dataset::FileSystemDatasetFactory::Make(
+              fs, {file_path}, format,
+              arrow::dataset::FileSystemFactoryOptions())
+              .ValueOrDie();
+      auto dataset = ds_factory->Finish().ValueOrDie();
+
+      // Warm-up (not timed)
+      {
+        auto warm_builder = dataset->NewScan().ValueOrDie();
+        REQUIRE(warm_builder->Filter(filter_expr).ok());
+        auto warm_scanner = warm_builder->Finish().ValueOrDie();
+        warm_scanner->ToTable().ValueOrDie();
+      }
+
+      // Timed run
+      auto start = std::chrono::high_resolution_clock::now();
+      auto scan_builder = dataset->NewScan().ValueOrDie();
+      REQUIRE(scan_builder->Filter(filter_expr).ok());
+      auto scanner = scan_builder->Finish().ValueOrDie();
+      auto result = scanner->ToTable().ValueOrDie();
+      auto end = std::chrono::high_resolution_clock::now();
+
+      auto elapsed_us =
+          std::chrono::duration_cast<std::chrono::microseconds>(end - start)
+              .count();
+      return {result->num_rows(), elapsed_us};
+    };
+
+    auto [rows_no_bloom, time_no_bloom] =
+        timed_scan(query_no_bloom_path);
+    auto [rows_bloom, time_bloom] =
+        timed_scan(query_bloom_path);
+
+    double speedup =
+        (time_no_bloom > 0 && time_bloom > 0)
+            ? static_cast<double>(time_no_bloom) / time_bloom
+            : 0.0;
+
+    // Output query performance comparison
+    std::cout << "\n==============================================="
+              << std::endl;
+    std::cout << "  QUERY PERFORMANCE COMPARISON" << std::endl;
+    std::cout << "==============================================="
+              << std::endl;
+    std::cout << "  Total rows:             " << num_rows << std::endl;
+    std::cout << "  Row groups:             "
+              << num_rows / row_group_size << std::endl;
+    std::cout << "  Filter:                 id == " << target_id
+              << std::endl;
+    std::cout << "  Rows returned:          " << rows_no_bloom
+              << std::endl;
+    std::cout << "  Time (no bloom):        " << time_no_bloom
+              << " us" << std::endl;
+    std::cout << "  Time (with bloom):      " << time_bloom << " us"
+              << std::endl;
+    if (speedup > 1.0) {
+      std::cout << "  Speedup:                " << speedup << "x"
+                << std::endl;
+    } else {
+      std::cout << "  Speedup:                " << speedup << "x"
+                << " (dataset too small for bloom benefit)"
+                << std::endl;
+    }
+    std::cout << "==============================================="
+              << std::endl;
+
+    REQUIRE(rows_no_bloom == rows_bloom);  // same correctness
+    REQUIRE(rows_no_bloom > 0);
+  }
+
+  // ===============================================================
+  // 5. Query performance with 100 row groups
+  //    Larger row group count demonstrates row-group-level skipping
+  //    where bloom filter truly shines.
+  // ===============================================================
+  {
+    const int64_t num_rows = 500000;
+    const int64_t row_group_size = 5000;  // 100 row groups
+    const int64_t target_id = 420000;     // in the last few row groups
+
+    // Build synthetic table: sequential id (0..N-1)
+    arrow::Int64Builder id_builder;
+    arrow::DoubleBuilder val_builder;
+    for (int64_t i = 0; i < num_rows; ++i) {
+      REQUIRE(id_builder.Append(i).ok());
+      REQUIRE(val_builder.Append(static_cast<double>(i % 1000)).ok());
+    }
+    auto id_array = id_builder.Finish().ValueOrDie();
+    auto val_array = val_builder.Finish().ValueOrDie();
+    auto syn_schema = arrow::schema(
+        {arrow::field("id", arrow::int64()),
+         arrow::field("val", arrow::float64())});
+    auto big_table = arrow::Table::Make(syn_schema, {id_array, val_array});
+
+    const std::string large_no_bloom_path =
+        base_dir + "large_no_bloom.parquet";
+    const std::string large_bloom_path =
+        base_dir + "large_bloom.parquet";
+
+    // Write WITHOUT bloom filter
+    {
+      auto opts = WriterOptions::ParquetOptionBuilder()
+                      .max_row_group_length(row_group_size)
+                      .compression(arrow::Compression::ZSTD)
+                      .build();
+      auto out = fs->OpenOutputStream(large_no_bloom_path).ValueOrDie();
+      auto st = parquet::arrow::WriteTable(
+          *big_table, arrow::default_memory_pool(), out, row_group_size,
+          opts->getParquetWriterProperties(),
+          opts->getArrowWriterProperties());
+      REQUIRE(st.ok());
+    }
+
+    // Write WITH bloom filter on all columns (auto-folding)
+    {
+      auto opts = WriterOptions::ParquetOptionBuilder()
+                      .max_row_group_length(row_group_size)
+                      .compression(arrow::Compression::ZSTD)
+                      .enable_bloom_filter()
+                      .build();
+      auto out = fs->OpenOutputStream(large_bloom_path).ValueOrDie();
+      auto st = parquet::arrow::WriteTable(
+          *big_table, arrow::default_memory_pool(), out, row_group_size,
+          opts->getParquetWriterProperties(big_table->schema()),
+          opts->getArrowWriterProperties());
+      REQUIRE(st.ok());
+    }
+
+    // Verify row group counts
+    {
+      auto meta_no_bloom = parquet::ReadMetaData(
+          fs->OpenInputFile(large_no_bloom_path).ValueOrDie());
+      auto meta_bloom = parquet::ReadMetaData(
+          fs->OpenInputFile(large_bloom_path).ValueOrDie());
+      REQUIRE(meta_no_bloom->num_row_groups() == 100);
+      REQUIRE(meta_bloom->num_row_groups() == 100);
+    }
+
+    auto format = std::make_shared<arrow::dataset::ParquetFileFormat>();
+    auto filter_expr = arrow::compute::equal(
+        arrow::compute::field_ref("id"),
+        arrow::compute::literal(arrow::Int64Scalar(target_id)));
+
+    auto timed_scan =
+        [&](const std::string& file_path)
+        -> std::pair<int64_t, int64_t> {
+      auto ds_factory =
+          arrow::dataset::FileSystemDatasetFactory::Make(
+              fs, {file_path}, format,
+              arrow::dataset::FileSystemFactoryOptions())
+              .ValueOrDie();
+      auto dataset = ds_factory->Finish().ValueOrDie();
+
+      // Warm-up (not timed)
+      {
+        auto warm_builder = dataset->NewScan().ValueOrDie();
+        REQUIRE(warm_builder->Filter(filter_expr).ok());
+        auto warm_scanner = warm_builder->Finish().ValueOrDie();
+        warm_scanner->ToTable().ValueOrDie();
+      }
+
+      // Timed run
+      auto start = std::chrono::high_resolution_clock::now();
+      auto scan_builder = dataset->NewScan().ValueOrDie();
+      REQUIRE(scan_builder->Filter(filter_expr).ok());
+      auto scanner = scan_builder->Finish().ValueOrDie();
+      auto result = scanner->ToTable().ValueOrDie();
+      auto end = std::chrono::high_resolution_clock::now();
+
+      auto elapsed_us =
+          std::chrono::duration_cast<std::chrono::microseconds>(end - start)
+              .count();
+      return {result->num_rows(), elapsed_us};
+    };
+
+    auto [rows_no_bloom, time_no_bloom] =
+        timed_scan(large_no_bloom_path);
+    auto [rows_bloom, time_bloom] =
+        timed_scan(large_bloom_path);
+
+    // Also get file sizes for storage overhead report
+    int64_t large_no_bloom_size =
+        fs->GetFileInfo(large_no_bloom_path).ValueOrDie().size();
+    int64_t large_bloom_size =
+        fs->GetFileInfo(large_bloom_path).ValueOrDie().size();
+
+    double speedup =
+        (time_no_bloom > 0 && time_bloom > 0)
+            ? static_cast<double>(time_no_bloom) / time_bloom
+            : 0.0;
+
+    std::cout << "\n==============================================="
+              << std::endl;
+    std::cout << "  QUERY PERFORMANCE COMPARISON (100 Row Groups)"
+              << std::endl;
+    std::cout << "==============================================="
+              << std::endl;
+    std::cout << "  Total rows:             " << num_rows << std::endl;
+    std::cout << "  Row groups:             100" << std::endl;
+    std::cout << "  Filter:                 id == " << target_id
+              << std::endl;
+    std::cout << "  Rows returned:          " << rows_no_bloom
+              << std::endl;
+    std::cout << "  File size (no bloom):   " << large_no_bloom_size
+              << " bytes (" << large_no_bloom_size / 1024.0 << " KB)"
+              << std::endl;
+    std::cout << "  File size (with bloom): " << large_bloom_size
+              << " bytes (" << large_bloom_size / 1024.0 << " KB)"
+              << std::endl;
+    std::cout << "  Size increase:          "
+              << (static_cast<double>(large_bloom_size -
+                                      large_no_bloom_size) /
+                  large_no_bloom_size * 100.0)
+              << "%" << std::endl;
+    std::cout << "  Time (no bloom):        " << time_no_bloom
+              << " us" << std::endl;
+    std::cout << "  Time (with bloom):      " << time_bloom << " us"
+              << std::endl;
+    if (speedup > 1.0) {
+      std::cout << "  Speedup:                " << speedup << "x"
+                << std::endl;
+    } else {
+      std::cout << "  Speedup:                " << speedup << "x"
+                << " (bloom filter not beneficial for this query)"
+                << std::endl;
+    }
+    std::cout << "==============================================="
+              << std::endl;
+
+    REQUIRE(rows_no_bloom == rows_bloom);  // same correctness
+    REQUIRE(rows_no_bloom > 0);
+    // For existing values across many row groups, bloom filter
+    // metadata overhead can outweigh data-page skip benefits.
+    // The real value shows in the non-existent-value scenario below.
+  }
+
+  // ===============================================================
+  // 6. Killer scenario: non-existent value lookup with heavy rows
+  //    Bloom filter truly shines when each row group is large enough
+  //    that skipping its data pages matters. We use wide rows (10
+  //    columns), big row groups (100K rows each), and SNAPPY
+  //    compression to keep data pages non-trivial in size.
+  //    Query for a value that does NOT exist → bloom filter confirms
+  //    "definitely absent" in every row group → ALL data pages skipped.
+  // ===============================================================
+  {
+    const int64_t num_rows = 500000;
+    const int64_t row_group_size = 100000;   // 5 big row groups
+    const int64_t missing_id = 999999;       // not in [0, 499999]
+
+    // Build a wide table (10 columns) to make each row group heavy
+    arrow::Int64Builder id_builder;
+    arrow::DoubleBuilder c1_builder, c2_builder, c3_builder, c4_builder;
+    arrow::StringBuilder c5_builder, c6_builder;
+    arrow::Int64Builder c7_builder, c8_builder, c9_builder;
+    for (int64_t i = 0; i < num_rows; ++i) {
+      REQUIRE(id_builder.Append(i).ok());
+      REQUIRE(c1_builder.Append(static_cast<double>(i % 1000)).ok());
+      REQUIRE(c2_builder.Append(static_cast<double>((i * 7) % 10000)).ok());
+      REQUIRE(c3_builder.Append(static_cast<double>((i * 13) % 500)).ok());
+      REQUIRE(c4_builder.Append(static_cast<double>(i * 0.5)).ok());
+      REQUIRE(c5_builder.Append("str_" + std::to_string(i % 500)).ok());
+      REQUIRE(c6_builder.Append("val_" + std::to_string(i % 200)).ok());
+      REQUIRE(c7_builder.Append(i * 3).ok());
+      REQUIRE(c8_builder.Append(i % 10000).ok());
+      REQUIRE(c9_builder.Append(i / 100).ok());
+    }
+    auto syn_schema = arrow::schema({
+        arrow::field("id", arrow::int64()),
+        arrow::field("c1", arrow::float64()),
+        arrow::field("c2", arrow::float64()),
+        arrow::field("c3", arrow::float64()),
+        arrow::field("c4", arrow::float64()),
+        arrow::field("c5", arrow::utf8()),
+        arrow::field("c6", arrow::utf8()),
+        arrow::field("c7", arrow::int64()),
+        arrow::field("c8", arrow::int64()),
+        arrow::field("c9", arrow::int64()),
+    });
+    auto big_table = arrow::Table::Make(
+        syn_schema,
+        {id_builder.Finish().ValueOrDie(), c1_builder.Finish().ValueOrDie(),
+         c2_builder.Finish().ValueOrDie(), c3_builder.Finish().ValueOrDie(),
+         c4_builder.Finish().ValueOrDie(), c5_builder.Finish().ValueOrDie(),
+         c6_builder.Finish().ValueOrDie(), c7_builder.Finish().ValueOrDie(),
+         c8_builder.Finish().ValueOrDie(), c9_builder.Finish().ValueOrDie()});
+
+    const std::string kill_no_bloom = base_dir + "kill_no_bloom.parquet";
+    const std::string kill_bloom = base_dir + "kill_bloom.parquet";
+
+    // Write WITHOUT bloom filter (UNCOMPRESSED for large data pages)
+    {
+      auto opts =
+          WriterOptions::ParquetOptionBuilder()
+              .max_row_group_length(row_group_size)
+              .compression(arrow::Compression::UNCOMPRESSED)
+              .build();
+      auto out = fs->OpenOutputStream(kill_no_bloom).ValueOrDie();
+      auto st = parquet::arrow::WriteTable(
+          *big_table, arrow::default_memory_pool(), out, row_group_size,
+          opts->getParquetWriterProperties(),
+          opts->getArrowWriterProperties());
+      REQUIRE(st.ok());
+    }
+
+    // Write WITH bloom filter (UNCOMPRESSED for large data pages)
+    {
+      ::parquet::BloomFilterOptions bf_opts;
+      auto opts =
+          WriterOptions::ParquetOptionBuilder()
+              .max_row_group_length(row_group_size)
+              .compression(arrow::Compression::UNCOMPRESSED)
+              .enable_bloom_filter(true, bf_opts)
+              .build();
+      auto out = fs->OpenOutputStream(kill_bloom).ValueOrDie();
+      auto st = parquet::arrow::WriteTable(
+          *big_table, arrow::default_memory_pool(), out, row_group_size,
+          opts->getParquetWriterProperties(big_table->schema()),
+          opts->getArrowWriterProperties());
+      REQUIRE(st.ok());
+    }
+
+    // --- Approach A: Dataset Scanner timing (higher-level) ---
+    auto format = std::make_shared<arrow::dataset::ParquetFileFormat>();
+    auto filter_expr = arrow::compute::equal(
+        arrow::compute::field_ref("id"),
+        arrow::compute::literal(arrow::Int64Scalar(missing_id)));
+
+    auto timed_dataset_scan =
+        [&](const std::string& path) -> std::pair<int64_t, int64_t> {
+      auto ds = arrow::dataset::FileSystemDatasetFactory::Make(
+                    fs, {path}, format,
+                    arrow::dataset::FileSystemFactoryOptions())
+                    .ValueOrDie()
+                    ->Finish()
+                    .ValueOrDie();
+      // Warm-up
+      {
+        auto b = ds->NewScan().ValueOrDie();
+        REQUIRE(b->Filter(filter_expr).ok());
+        b->Finish().ValueOrDie()->ToTable().ValueOrDie();
+      }
+      // Timed
+      auto start = std::chrono::high_resolution_clock::now();
+      auto b = ds->NewScan().ValueOrDie();
+      REQUIRE(b->Filter(filter_expr).ok());
+      auto rows = b->Finish().ValueOrDie()->ToTable().ValueOrDie()->num_rows();
+      auto end = std::chrono::high_resolution_clock::now();
+      return {rows, std::chrono::duration_cast<std::chrono::microseconds>(
+                        end - start).count()};
+    };
+
+    // --- Approach B: Read each row group individually via Result API ---
+    // (Arrow 24.0.0+ deprecated the Status version of ReadRowGroup)
+    auto scan_row_groups =
+        [&](const std::string& path)
+        -> std::tuple<int, int64_t, int64_t> {
+      auto reader = parquet::arrow::FileReader::Make(
+          arrow::default_memory_pool(),
+          parquet::ParquetFileReader::OpenFile(path));
+      REQUIRE(reader.ok());
+      auto& r = *reader.ValueOrDie();
+      int num_groups = r.num_row_groups();
+      int64_t total_rows_read = 0;
+
+      // Warm-up: read group 0
+      r.ReadRowGroup(0).ValueOrDie();
+
+      // Timed: read every row group
+      auto start = std::chrono::high_resolution_clock::now();
+      for (int rg = 0; rg < num_groups; ++rg) {
+        auto tbl = r.ReadRowGroup(rg).ValueOrDie();
+        total_rows_read += tbl->num_rows();
+      }
+      auto end = std::chrono::high_resolution_clock::now();
+      return {num_groups, total_rows_read,
+              std::chrono::duration_cast<std::chrono::microseconds>(
+                  end - start).count()};
+    };
+
+    // Meta: check bloom filter availability
+    auto check_bloom_meta = [&](const std::string& path) {
+      auto meta =
+          parquet::ReadMetaData(fs->OpenInputFile(path).ValueOrDie());
+      for (int rg = 0; rg < meta->num_row_groups(); ++rg) {
+        auto col_meta = meta->RowGroup(rg)->ColumnChunk(0);
+        auto bloom_offset = col_meta->bloom_filter_offset();
+        // Check if bloom filter is set (non-zero offset or not -1)
+        if (bloom_offset.has_value() && bloom_offset.value() > 0) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    // File sizes
+    int64_t kill_no_bloom_sz =
+        fs->GetFileInfo(kill_no_bloom).ValueOrDie().size();
+    int64_t kill_bloom_sz =
+        fs->GetFileInfo(kill_bloom).ValueOrDie().size();
+
+    // Dataset-level scan
+    auto [ds_rows_no, ds_us_no] = timed_dataset_scan(kill_no_bloom);
+    auto [ds_rows_bf, ds_us_bf] = timed_dataset_scan(kill_bloom);
+    double ds_speedup = (ds_us_no > 0) ? (double)ds_us_no / ds_us_bf : 0;
+
+    // RowGroup-level scan (read every row group individually)
+    auto [rg_groups, rg_rows_no, rg_us_no] =
+        scan_row_groups(kill_no_bloom);
+    auto [rg_groups2, rg_rows_bf, rg_us_bf] =
+        scan_row_groups(kill_bloom);
+    (void)rg_groups2;
+
+    bool has_bloom = check_bloom_meta(kill_bloom);
+
+    std::cout << "\n==============================================="
+              << std::endl;
+    std::cout << "  KILLER SCENARIO: Non-Existent Value Lookup"
+              << std::endl;
+    std::cout << "==============================================="
+              << std::endl;
+    std::cout << "  Total rows:                " << num_rows
+              << std::endl;
+    std::cout << "  Row groups:                "
+              << num_rows / row_group_size << std::endl;
+    std::cout << "  Columns:                   10 (wide rows)"
+              << std::endl;
+    std::cout << "  Filter:                    id == " << missing_id
+              << std::endl;
+    std::cout << "  Bloom filter on id column: "
+              << (has_bloom ? "YES" : "NO") << std::endl;
+    std::cout << "-----------------------------------------------"
+              << std::endl;
+    std::cout << "  Dataset Scanner:" << std::endl;
+    std::cout << "    Rows returned:           " << ds_rows_no
+              << std::endl;
+    std::cout << "    Time (no bloom):         " << ds_us_no
+              << " us" << std::endl;
+    std::cout << "    Time (with bloom):       " << ds_us_bf
+              << " us" << std::endl;
+    std::cout << "    Speedup:                 " << ds_speedup
+              << "x" << std::endl;
+    std::cout << "-----------------------------------------------"
+              << std::endl;
+    std::cout << "  RowGroup-level Scan (all groups):" << std::endl;
+    std::cout << "    Row groups:               " << rg_groups
+              << std::endl;
+    std::cout << "    Rows read (no bloom):     " << rg_rows_no
+              << std::endl;
+    std::cout << "    Rows read (with bloom):   " << rg_rows_bf
+              << std::endl;
+    std::cout << "    Time (no bloom):          " << rg_us_no
+              << " us" << std::endl;
+    std::cout << "    Time (with bloom):        " << rg_us_bf
+              << " us" << std::endl;
+    if (rg_us_no > 0) {
+      std::cout << "    Speedup:                  "
+                << (double)rg_us_no / rg_us_bf << "x" << std::endl;
+    }
+    std::cout << "-----------------------------------------------"
+              << std::endl;
+    std::cout << "  File size (no bloom):      " << kill_no_bloom_sz
+              << " bytes (" << kill_no_bloom_sz / 1024.0 << " KB)"
+              << std::endl;
+    std::cout << "  File size (with bloom):    " << kill_bloom_sz
+              << " bytes (" << kill_bloom_sz / 1024.0 << " KB)"
+              << std::endl;
+    std::cout << "  Size increase:             "
+              << (double)(kill_bloom_sz - kill_no_bloom_sz) /
+                     kill_no_bloom_sz * 100.0
+              << "%" << std::endl;
+    std::cout << "==============================================="
+              << std::endl;
+
+    REQUIRE(ds_rows_no == 0);       // id not found
+    REQUIRE(ds_rows_bf == 0);       // consistent
+    REQUIRE(has_bloom);             // bloom filter is present
+  }
+
+  // Assertions
+  REQUIRE(no_bloom_size > 0);
+  REQUIRE(bloom_size > 0);
+  REQUIRE(!no_bloom_has_bloom);
+  REQUIRE(bloom_col_count > 0);
+  REQUIRE(bloom_size >= no_bloom_size);
 }
 }  // namespace graphar

@@ -86,6 +86,30 @@ WriterOptions::getParquetWriterProperties() const {
   return builder.build();
 }
 
+std::shared_ptr<parquet::WriterProperties>
+WriterOptions::getParquetWriterProperties(
+    const std::shared_ptr<arrow::Schema>& schema) const {
+  // Start with base properties
+  auto base_props = getParquetWriterProperties();
+  parquet::WriterProperties::Builder builder(*base_props);
+  if (parquetOption_ && parquetOption_->enable_bloom_filter) {
+    // Apply bloom filter to each column in the schema.
+    // Arrow 25.0.0+ (GH-50008) auto-folds ndv to actual cardinality
+    // when ndv is left as std::nullopt (default).
+    for (int i = 0; i < schema->num_fields(); ++i) {
+      const auto& field_name = schema->field(i)->name();
+      auto it = parquetOption_->column_bloom_filter_options.find(field_name);
+      if (it != parquetOption_->column_bloom_filter_options.end()) {
+        builder.enable_bloom_filter(field_name, it->second);
+      } else {
+        builder.enable_bloom_filter(
+            field_name, parquetOption_->default_bloom_filter_options);
+      }
+    }
+  }
+  return builder.build();
+}
+
 int64_t WriterOptions::getParquetMaxRowGroupLength() const {
   if (parquetOption_) {
     return parquetOption_->max_row_group_length;

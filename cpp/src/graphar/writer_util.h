@@ -115,6 +115,15 @@ class WriterOptions {
     bool enable_deprecated_int96_timestamps = false;
     bool allow_truncated_timestamps = false;
     bool store_schema = false;
+    // Bloom filter options (Arrow 25.0.0+ auto-folds ndv, GH-50008):
+    // When enable_bloom_filter is true, bloom filters are applied to all
+    // columns using default_bloom_filter_options. Leave ndv as std::nullopt
+    // for Arrow to auto-size the filter based on actual cardinality.
+    // Per-column overrides are specified in column_bloom_filter_options.
+    bool enable_bloom_filter = false;
+    ::parquet::BloomFilterOptions default_bloom_filter_options;
+    std::unordered_map<std::string, ::parquet::BloomFilterOptions>
+        column_bloom_filter_options;
   };
   /**
    * @class ORCOption
@@ -327,6 +336,26 @@ class WriterOptions {
       option_->executor = exec;
       return *this;
     }
+    /// Enable bloom filter for all columns with the given options.
+    /// Arrow 25.0.0+ auto-folds the bloom filter to actual column
+    /// cardinality (GH-50008), so ndv can be left as std::nullopt.
+    /// Passing BloomFilterOptions{} (all defaults) enables auto-folding.
+    ParquetOptionBuilder& enable_bloom_filter(
+        bool enable = true,
+        const ::parquet::BloomFilterOptions& options = {}) {
+      option_->enable_bloom_filter = enable;
+      option_->default_bloom_filter_options = options;
+      return *this;
+    }
+    /// Set per-column bloom filter options (overrides default).
+    /// Each column can have different ndv/fpp/fold settings.
+    /// Leave ndv as std::nullopt for Arrow 25.0.0+ auto-folding.
+    ParquetOptionBuilder& column_bloom_filter_options(
+        const std::unordered_map<std::string,
+                                 ::parquet::BloomFilterOptions>& opts) {
+      option_->column_bloom_filter_options = opts;
+      return *this;
+    }
     std::shared_ptr<WriterOptions> build() {
       if (!writerOptions_) {
         writerOptions_ = std::make_shared<WriterOptions>();
@@ -427,9 +456,18 @@ class WriterOptions {
   }
   arrow::csv::WriteOptions getCsvOption() const;
   std::shared_ptr<parquet::WriterProperties> getParquetWriterProperties() const;
+  /// Returns WriterProperties with bloom filter applied to all schema columns
+  /// when enable_bloom_filter is true. Bloom filters are per-column in Parquet,
+  /// so the table schema is required to know which columns to enable.
+  std::shared_ptr<parquet::WriterProperties> getParquetWriterProperties(
+      const std::shared_ptr<arrow::Schema>& schema) const;
   std::shared_ptr<parquet::ArrowWriterProperties> getArrowWriterProperties()
       const;
   int64_t getParquetMaxRowGroupLength() const;
+  /// Returns true if bloom filter is enabled for Parquet writes.
+  bool IsBloomFilterEnabled() const {
+    return parquetOption_ && parquetOption_->enable_bloom_filter;
+  }
 #ifdef ARROW_ORC
   arrow::adapters::orc::WriteOptions getOrcOption() const;
 #endif
